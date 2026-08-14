@@ -21,6 +21,7 @@ export interface Queryable {
 
 interface Database extends Queryable {
   transaction<T>(fn: (t: Queryable) => Promise<T>): Promise<T>;
+  close?: () => Promise<void>;
 }
 
 interface DbGlobal {
@@ -55,6 +56,7 @@ function wrapPostgres(sql: PostgresSql): Database {
       // preserves SELECT ... FOR UPDATE and the app's other atomic workflows.
       return sql.begin(async (txSql) => fn(postgresQueryAdapter(txSql))) as Promise<T>;
     },
+    close: () => sql.end({ timeout: 5 }),
   };
 }
 
@@ -69,6 +71,7 @@ function wrapPGlite(pg: PGlite): Database {
         return fn(wrapped);
       }) as Promise<T>;
     },
+    close: () => pg.close(),
   };
 }
 

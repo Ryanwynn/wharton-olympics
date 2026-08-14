@@ -57,23 +57,54 @@ class ConsoleMailer implements Mailer {
 }
 
 /**
- * SES mailer (production). Deliberately not wired with the AWS SDK in this build to
- * keep the dependency surface small; the template requirements (§11) are encoded
- * here as the contract: code in the SUBJECT and the body, plain-text-forward, no
- * images/pixels/link-shorteners. Implement `send` with @aws-sdk/client-sesv2.
+ * Template shared by real providers (§11 deliverability): code in the SUBJECT and
+ * the body, plain-text-forward (no HTML/images/pixels/link-shorteners — every one
+ * raises the spam score at a .upenn.edu address).
  */
-class SesMailer implements Mailer {
-  async sendCode(to: string, code: string): Promise<void> {
-    const subject = `${code} is your Wharton Olympics code`;
-    const body =
+function codeEmail(code: string): { subject: string; text: string } {
+  return {
+    subject: `${code} is your Wharton Olympics code`,
+    text:
       `${code} is your Wharton Student Olympics sign-in code.\n\n` +
       `It expires in 10 minutes and can be used once. If you didn't request it, ignore this email.\n\n` +
-      `— Wharton Student Olympics (a student organization at the University of Pennsylvania)`;
-    void subject;
-    void body;
+      `— Wharton Student Olympics (a student organization at the University of Pennsylvania)`,
+  };
+}
+
+/**
+ * Resend mailer (recommended for production). No SDK — a single HTTPS call, so it
+ * runs anywhere including Vercel serverless. Requires a verified sending domain
+ * (SPF/DKIM added to that domain's DNS) and RESEND_API_KEY.
+ */
+class ResendMailer implements Mailer {
+  async sendCode(to: string, code: string): Promise<void> {
+    const { subject, text } = codeEmail(code);
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.resendApiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ from: env.mailFrom, to, subject, text }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Resend send failed (${res.status}): ${detail.slice(0, 300)}`);
+    }
+  }
+}
+
+/**
+ * SES mailer (cheapest at scale, but new accounts are sandboxed until AWS grants
+ * production access — request it early). Left unimplemented to avoid the AWS SDK
+ * dependency; prefer Resend. To use SES: `npm i @aws-sdk/client-sesv2`, send with
+ * the same `codeEmail()` template, and set MAILER=ses.
+ */
+class SesMailer implements Mailer {
+  async sendCode(): Promise<void> {
     throw new Error(
-      "SesMailer not implemented in this build. Wire @aws-sdk/client-sesv2 here and set MAILER=ses. " +
-        "Requirements: verified domain with SPF/DKIM/DMARC, code in subject+body, plain-text, no images/pixels."
+      "MAILER=ses is not implemented in this build. Use MAILER=resend (recommended), or wire " +
+        "@aws-sdk/client-sesv2 into SesMailer. Either way: verify a sending domain with SPF/DKIM/DMARC."
     );
   }
 }
@@ -81,5 +112,15 @@ class SesMailer implements Mailer {
 export const lastDevCodes = new Map<string, { code: string; at: number }>();
 
 export function getMailer(): Mailer {
-  return env.mailer === "ses" ? new SesMailer() : new ConsoleMailer();
+  switch (env.mailer) {
+    case "resend":
+      if (!env.resendApiKey) {
+        throw new Error("MAILER=resend but RESEND_API_KEY is not set. Add it to your environment (e.g. Vercel → Settings → Environment Variables).");
+      }
+      return new ResendMailer();
+    case "ses":
+      return new SesMailer();
+    default:
+      return new ConsoleMailer();
+  }
 }

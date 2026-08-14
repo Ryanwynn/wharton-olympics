@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Wharton Student Olympics design tokens — spec §12.
+ * Blue dominates, red supports. Hover/active/focus derive from the two primaries.
+ * Every text/background pair below is verified to clear WCAG AA (4.5:1 body, 3:1 large).
+ */
+:root {
+  --penn-blue: #011f5b;
+  --penn-blue-hover: #01163f; /* darkened primary for hover/active */
+  --penn-blue-tint: #e6ebf3; /* pale wash for live-row pulse + selected states */
+  --penn-red: #990000;
+  --penn-red-hover: #7a0000;
+
+  --surface: #ffffff;
+  --surface-alt: #f5f6f8;
+  --ink: #1a1a1a;
+  --ink-muted: #5a6170;
+  --border: #d8dce3;
+
+  /* Cohort palette — distinct from brand primaries so Penn Red never reads as a team color. */
+  --cohort-lion: #b8860b; /* dark goldenrod */
+  --cohort-dragon: #1b7f5e; /* jade green */
+  --cohort-bee: #d99400; /* amber */
+  --cohort-tiger: #c2410c; /* burnt orange */
+
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: system-ui, -apple-system, Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "kern";
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  color: var(--penn-blue);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+/* Tabular figures everywhere numbers must line up — ranks, points, times. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Visible keyboard focus everywhere (WCAG 2.1 AA). */
+:focus-visible {
+  outline: 3px solid var(--penn-blue);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+a {
+  color: var(--penn-blue);
+  text-underline-offset: 2px;
+}
+
+/* Respect reduced-motion: kill the pulse + live ping. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Screen-reader-only helper. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link, revealed on focus. */
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  z-index: 100;
+  background: var(--penn-blue);
+  color: #fff;
+  padding: 0.75rem 1rem;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}

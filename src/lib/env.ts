@@ -27,9 +27,9 @@ export const env = {
 
   // Mailer selection: "console" (dev), "resend" (recommended in prod), or "ses".
   mailer: (process.env.MAILER || "console").toLowerCase(),
-  // Verified sender. Must be an address on a domain you control + verified with the
-  // provider (SPF/DKIM). e.g. "Wharton Olympics <noreply@whartonolympics.org>".
-  mailFrom: process.env.MAIL_FROM || process.env.SES_FROM || "Wharton Olympics <onboarding@resend.dev>",
+  // Verified sender on whartonolympics.com (verify the domain in Resend, add its
+  // DNS records). Override per-environment with MAIL_FROM if needed.
+  mailFrom: process.env.MAIL_FROM || process.env.SES_FROM || "Wharton Olympics <noreply@whartonolympics.com>",
   resendApiKey: process.env.RESEND_API_KEY || "",
   awsRegion: process.env.AWS_REGION || "us-east-1",
 

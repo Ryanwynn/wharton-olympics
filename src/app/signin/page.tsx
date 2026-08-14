@@ -14,14 +14,19 @@ export default async function SignInPage({
   searchParams: { next?: string };
 }) {
   const user = await getOptionalUser();
-  if (user) {
-    // Already signed in — skip straight to the intended destination.
+  // Signed in AND profile complete → straight to the destination. Signed in but no
+  // cluster yet → fall through so they can finish the profile step.
+  if (user && user.cohortId) {
     redirect(searchParams.next || "/me");
   }
   const cohorts = await getCohorts();
   return (
     <Suspense>
-      <SignInFlow cohorts={cohorts} organizerContact={env.organizerContact} />
+      <SignInFlow
+        cohorts={cohorts}
+        organizerContact={env.organizerContact}
+        resumeProfile={user ? { displayName: user.displayName } : null}
+      />
     </Suspense>
   );
 }

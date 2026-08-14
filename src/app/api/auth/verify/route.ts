@@ -6,6 +6,7 @@ import { hashCode, safeEqualHex } from "@/lib/crypto";
 import { createSession, setSessionCookie } from "@/lib/auth";
 import { prettifyLocalPart } from "@/lib/format";
 import { rateLimitAll, HOUR } from "@/lib/ratelimit";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +59,12 @@ export const POST = route(async (req) => {
     needsProfile = true;
   } else {
     needsProfile = !user.cohort_id;
+  }
+
+  // Pre-authorized admins (SEED_ADMIN_EMAILS at deploy, §3) are flagged on login,
+  // so it works in production without running a seed script.
+  if (env.seedAdminEmails.includes(email) && !user.is_admin) {
+    user = await queryOne<any>(`UPDATE users SET is_admin = true WHERE id = $1 RETURNING *`, [user.id]);
   }
   await query(`UPDATE users SET last_seen_at = now() WHERE id = $1`, [user.id]);
 

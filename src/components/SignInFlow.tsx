@@ -9,17 +9,21 @@ type Step = "email" | "code" | "profile";
 export function SignInFlow({
   cohorts,
   organizerContact,
+  resumeProfile,
 }: {
   cohorts: CohortOption[];
   organizerContact: string;
+  // Set when an already-signed-in user still needs to finish their profile
+  // (e.g. they verified before any clusters existed). Jumps straight to that step.
+  resumeProfile?: { displayName: string } | null;
 }) {
   const params = useSearchParams();
   const next = params.get("next") || "/";
 
-  const [step, setStep] = useState<Step>("email");
+  const [step, setStep] = useState<Step>(resumeProfile ? "profile" : "email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(resumeProfile?.displayName ?? "");
   const [cohortId, setCohortId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

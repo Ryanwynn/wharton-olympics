@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts",
+    "db:bootstrap": "tsx db/bootstrap.ts",
     "db:reset": "tsx db/reset.ts",
     "test": "tsx --test src/lib/*.test.ts"
   },

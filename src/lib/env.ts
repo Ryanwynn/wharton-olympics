@@ -25,6 +25,14 @@ export const env = {
   sessionTtlDays: Number(process.env.SESSION_TTL_DAYS || "30"),
   privilegedSessionHours: 12, // admin/scorekeeper step-down (§5.5)
 
+  // Code-request rate limits (§5.4), env-overridable. Defaults are more forgiving
+  // than the spec's 3/10/10: repeated testing tripped them, and the per-IP cap must
+  // be generous because hundreds of users on shared campus wifi egress from the same
+  // IPs on event day. Per-email is the real anti-abuse control (plus-tags stripped).
+  rateCodeEmailHour: Number(process.env.RATE_CODE_EMAIL_HOUR || "6"),
+  rateCodeEmailDay: Number(process.env.RATE_CODE_EMAIL_DAY || "20"),
+  rateCodeIpHour: Number(process.env.RATE_CODE_IP_HOUR || "60"),
+
   // Mailer selection: "console" (dev), "resend" (recommended in prod), or "ses".
   mailer: (process.env.MAILER || "console").toLowerCase(),
   // Verified sender on whartonolympics.com (verify the domain in Resend, add its

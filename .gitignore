@@ -8,6 +8,7 @@ next-env.d.ts
 
 # local database (PGlite)
 /.pgdata
+/.pgdata-test
 
 # env
 .env

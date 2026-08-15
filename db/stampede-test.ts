@@ -87,8 +87,14 @@ delete process.env.DATABASE_URL;
     capCountAfterCreate === 0 && capCountAt2 === 0 && capCountAt3 === 1 && teamStatus === "registered";
 
   console.log("\n" + (pass ? "✅ PASS — no oversell, waitlist correct, idempotent, team gating correct" : "❌ FAIL"));
-  fs.rmSync(".pgdata-test", { recursive: true, force: true });
-  await (await getDb()).close?.();
+  // Hard-exit WITHOUT closing PGlite. Deleting the data dir and then calling close()
+  // makes the WASM abort during shutdown (it flushes to a now-missing dir), which
+  // taints the exit code even on PASS. Clean up the throwaway dir and exit directly.
+  try {
+    fs.rmSync(".pgdata-test", { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
   process.exit(pass ? 0 : 1);
 })().catch((e) => {
   console.error(e);

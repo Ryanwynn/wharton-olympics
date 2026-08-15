@@ -22,13 +22,13 @@ export const POST = route(async (req) => {
   if (!rawEmail || typeof rawEmail !== "string") return genericOk();
   const email = normalizeEmail(rawEmail);
 
-  // Rate limits per email + per IP (§5.4).
+  // Rate limits per email + per IP (§5.4), thresholds from env.
   const tripped = await rateLimitAll([
-    { key: `code:email:${email}:h`, limit: 3, windowMs: HOUR },
-    { key: `code:email:${email}:d`, limit: 10, windowMs: DAY },
-    { key: `code:ip:${ip}:h`, limit: 10, windowMs: HOUR },
+    { key: `code:email:${email}:h`, limit: env.rateCodeEmailHour, windowMs: HOUR },
+    { key: `code:email:${email}:d`, limit: env.rateCodeEmailDay, windowMs: DAY },
+    { key: `code:ip:${ip}:h`, limit: env.rateCodeIpHour, windowMs: HOUR },
   ]);
-  if (tripped) return jsonError("Too many code requests. Please wait and try again.", 429);
+  if (tripped) return jsonError("Too many code requests. Please wait a bit and try again.", 429);
 
   if (!isEligible(email)) return genericOk();
 

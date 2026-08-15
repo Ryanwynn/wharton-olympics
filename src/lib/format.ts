@@ -33,6 +33,29 @@ export function slugify(name: string): string {
   );
 }
 
+/** Title-cased entry type for labels/headers — "Team" / "Individual". */
+export function entryTypeLabel(t: string): string {
+  return t === "team" ? "Team" : "Individual";
+}
+
+/** Human, title-cased event status for admin display. */
+export function eventStatusLabel(s: string): string {
+  switch (s) {
+    case "draft":
+      return "Draft";
+    case "published":
+      return "Published";
+    case "in_progress":
+      return "In progress";
+    case "complete":
+      return "Complete";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return s;
+  }
+}
+
 export function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;

@@ -3,19 +3,27 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtDayTime, fmtTime } from "@/lib/time";
+import { entryTypeLabel, eventStatusLabel } from "@/lib/format";
 import type { CohortOption } from "@/lib/queries";
 
 export interface AdminEvent {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
   entryType: "individual" | "team";
   status: string;
   capacity: number | null;
+  waitlistEnabled: boolean;
+  minTeamSize: number | null;
+  maxTeamSize: number | null;
   startsAt: string | null;
+  endsAt: string | null;
   location: string | null;
+  locationNote: string | null;
   signupOpensAt: string | null;
   signupClosesAt: string | null;
+  pointsSchema: Record<string, number> | null;
   registered: number;
   waitlisted: number;
 }
@@ -79,6 +87,7 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openRoster, setOpenRoster] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function toggle(ev: AdminEvent) {
     setError(null);
@@ -105,7 +114,7 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
       <button onClick={() => setCreating((v) => !v)} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white hover:bg-penn-blue-hover">
         {creating ? "Close" : "+ New event"}
       </button>
-      {creating && <CreateEventForm onDone={() => { setCreating(false); router.refresh(); }} />}
+      {creating && <EventForm onDone={() => { setCreating(false); router.refresh(); }} />}
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[640px] text-left text-sm">
@@ -124,7 +133,7 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                 <tr className="border-t border-border">
                   <td className="px-3 py-2">
                     <div className="font-medium text-ink">{ev.name}</div>
-                    <div className="text-xs text-ink-muted">{ev.entryType} · {fmtDayTime(ev.startsAt)} · {ev.location ?? "—"}</div>
+                    <div className="text-xs text-ink-muted">{entryTypeLabel(ev.entryType)} · {fmtDayTime(ev.startsAt)} · {ev.location ?? "—"}</div>
                   </td>
                   <td className="px-3 py-2"><StatusTag status={ev.status} /></td>
                   <td className="tabular px-3 py-2 text-right">{ev.registered}/{ev.capacity ?? "∞"}</td>
@@ -134,6 +143,12 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                       {(ev.status === "draft" || ev.status === "published") && (
                         <button onClick={() => toggle(ev)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
                           {ev.status === "draft" ? "Publish" : "Unpublish"}
+                        </button>
+                      )}
+                      {/* Draft (created-but-not-published, or unpublished) events are editable. */}
+                      {ev.status === "draft" && (
+                        <button onClick={() => setEditingId(editingId === ev.id ? null : ev.id)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
+                          {editingId === ev.id ? "Close" : "Edit"}
                         </button>
                       )}
                       <button onClick={() => setOpenRoster(openRoster === ev.id ? null : ev.id)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
@@ -148,6 +163,13 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                     </div>
                   </td>
                 </tr>
+                {editingId === ev.id && (
+                  <tr>
+                    <td colSpan={5} className="border-t border-border bg-surface-alt px-3 py-3">
+                      <EventForm event={ev} onDone={() => { setEditingId(null); router.refresh(); }} />
+                    </td>
+                  </tr>
+                )}
                 {openRoster === ev.id && (
                   <tr>
                     <td colSpan={5} className="border-t border-border bg-surface-alt px-3 py-3">
@@ -181,11 +203,44 @@ function StatusTag({ status }: { status: string }) {
     complete: "bg-cohort-dragon/10 text-cohort-dragon",
     cancelled: "bg-surface-alt text-ink-muted line-through",
   };
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${map[status] ?? "bg-surface-alt"}`}>{status}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${map[status] ?? "bg-surface-alt"}`}>{eventStatusLabel(status)}</span>;
 }
 
-function CreateEventForm({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState<any>({ entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, p1: 15, p2: 10, p3: 6, pp: 2 });
+/** Convert a stored ISO timestamp to a `datetime-local` value in the browser's tz. */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function initialForm(event?: AdminEvent) {
+  if (!event) {
+    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
+  }
+  const ps = event.pointsSchema ?? {};
+  return {
+    name: event.name,
+    description: event.description ?? "",
+    entry_type: event.entryType,
+    capacity: event.capacity ?? "",
+    waitlist_enabled: event.waitlistEnabled,
+    min_team_size: event.minTeamSize ?? 3,
+    max_team_size: event.maxTeamSize ?? 5,
+    location: event.location ?? "",
+    location_note: event.locationNote ?? "",
+    starts_at: toLocalInput(event.startsAt),
+    ends_at: toLocalInput(event.endsAt),
+    signup_opens_at: toLocalInput(event.signupOpensAt),
+    signup_closes_at: toLocalInput(event.signupClosesAt),
+    p1: ps["1"] ?? 15, p2: ps["2"] ?? 10, p3: ps["3"] ?? 6, pp: ps["participation"] ?? 2,
+  } as any;
+}
+
+// Shared create/edit form. With `event` it PATCHes (edit); without, it POSTs (create).
+function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }) {
+  const isEdit = Boolean(event);
+  const [f, setF] = useState<any>(() => initialForm(event));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: string, v: any) => setF((prev: any) => ({ ...prev, [k]: v }));
@@ -197,10 +252,11 @@ function CreateEventForm({ onDone }: { onDone: () => void }) {
     try {
       const body: any = {
         name: f.name,
-        entry_type: f.entry_type,
+        description: f.description || null,
         capacity: f.capacity ? Number(f.capacity) : null,
         waitlist_enabled: f.waitlist_enabled,
         location: f.location || null,
+        location_note: f.location_note || null,
         starts_at: f.starts_at ? new Date(f.starts_at).toISOString() : null,
         ends_at: f.ends_at ? new Date(f.ends_at).toISOString() : null,
         signup_opens_at: f.signup_opens_at ? new Date(f.signup_opens_at).toISOString() : null,
@@ -208,7 +264,12 @@ function CreateEventForm({ onDone }: { onDone: () => void }) {
         points_schema: { "1": Number(f.p1), "2": Number(f.p2), "3": Number(f.p3), participation: Number(f.pp) },
       };
       if (f.entry_type === "team") { body.min_team_size = Number(f.min_team_size); body.max_team_size = Number(f.max_team_size); }
-      await api("/api/admin/events", { method: "POST", body: JSON.stringify(body) });
+      if (isEdit) {
+        await api(`/api/admin/events/${event!.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        body.entry_type = f.entry_type; // entry type is set at creation and immutable after
+        await api("/api/admin/events", { method: "POST", body: JSON.stringify(body) });
+      }
       onDone();
     } catch (e) {
       setError((e as Error).message);
@@ -221,9 +282,11 @@ function CreateEventForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit} className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2">
       {error && <p className="sm:col-span-2 rounded bg-penn-red/5 px-2 py-1 text-sm text-penn-red">{error}</p>}
+      {isEdit && <p className="sm:col-span-2 text-sm font-semibold text-ink">Editing “{event!.name}”</p>}
       <label className="text-xs font-medium text-ink-muted sm:col-span-2">Name<input required className={input} value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} /></label>
+      <label className="text-xs font-medium text-ink-muted sm:col-span-2">Description<input className={input} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Entry type
-        <select className={input} value={f.entry_type} onChange={(e) => set("entry_type", e.target.value)}>
+        <select disabled={isEdit} title={isEdit ? "Entry type can't change after creation" : undefined} className={`${input} disabled:bg-surface-alt disabled:text-ink-muted`} value={f.entry_type} onChange={(e) => set("entry_type", e.target.value)}>
           <option value="individual">Individual</option>
           <option value="team">Team</option>
         </select>
@@ -236,6 +299,7 @@ function CreateEventForm({ onDone }: { onDone: () => void }) {
         </>
       )}
       <label className="text-xs font-medium text-ink-muted">Location<input className={input} value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} /></label>
+      <label className="text-xs font-medium text-ink-muted">Location note<input className={input} value={f.location_note ?? ""} onChange={(e) => set("location_note", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Starts<input type="datetime-local" className={input} value={f.starts_at ?? ""} onChange={(e) => set("starts_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Ends<input type="datetime-local" className={input} value={f.ends_at ?? ""} onChange={(e) => set("ends_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Signup opens<input type="datetime-local" className={input} value={f.signup_opens_at ?? ""} onChange={(e) => set("signup_opens_at", e.target.value)} /></label>
@@ -249,7 +313,9 @@ function CreateEventForm({ onDone }: { onDone: () => void }) {
         </div>
       </fieldset>
       <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={f.waitlist_enabled} onChange={(e) => set("waitlist_enabled", e.target.checked)} /> Enable waitlist</label>
-      <button disabled={busy} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2">{busy ? "Creating…" : "Create event (as draft)"}</button>
+      <button disabled={busy} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2">
+        {busy ? "Saving…" : isEdit ? "Save changes" : "Create event (as draft)"}
+      </button>
     </form>
   );
 }

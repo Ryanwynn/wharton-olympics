@@ -21,7 +21,7 @@
   --border: #d8dce3;
 
   /* Cohort palette — distinct from brand primaries so Penn Red never reads as a team color. */
-  --cohort-lion: #b8860b; /* dark goldenrod */
+  --cohort-lion: #e67e22; /* orange */
   --cohort-dragon: #1b7f5e; /* jade green */
   --cohort-bee: #d99400; /* amber */
   --cohort-tiger: #c2410c; /* burnt orange */

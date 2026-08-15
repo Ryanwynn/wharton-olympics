@@ -39,7 +39,12 @@ async function main() {
   for (const c of COHORTS) {
     const exists = await queryOne(`SELECT id FROM cohorts WHERE season_id = $1 AND name = $2`, [season!.id, c.name]);
     if (exists) {
-      console.log(`• cluster ${c.name} already exists`);
+      // Keep color/icon/sort in sync with the code (e.g. an updated cluster color).
+      await query(
+        `UPDATE cohorts SET color_hex = $3, icon_key = $4, sort_order = $5 WHERE season_id = $1 AND name = $2`,
+        [season!.id, c.name, c.colorHex, c.iconKey, c.sortOrder]
+      );
+      console.log(`• cluster ${c.name} exists — synced color/icon`);
     } else {
       await query(
         `INSERT INTO cohorts (season_id, name, color_hex, icon_key, sort_order) VALUES ($1,$2,$3,$4,$5)`,

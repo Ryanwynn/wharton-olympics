@@ -10,6 +10,7 @@ export interface StandingRow {
   colorHex: string;
   points: number;
   eventsScored: number;
+  memberCount: number; // users who belong to this cluster
   rank: number;
 }
 

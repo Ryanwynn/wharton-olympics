@@ -68,8 +68,9 @@ export async function getEventForScoring(eventId: string): Promise<ScoringEvent 
 // ── Admin: events list ──────────────────────────────────────────────────────────
 export async function listAdminEvents() {
   const rows = await query<any>(
-    `SELECT e.id, e.slug, e.name, e.entry_type, e.status, e.capacity, e.starts_at, e.location,
-            e.signup_opens_at, e.signup_closes_at,
+    `SELECT e.id, e.slug, e.name, e.description, e.entry_type, e.status, e.capacity, e.waitlist_enabled,
+            e.min_team_size, e.max_team_size, e.starts_at, e.ends_at, e.location, e.location_note,
+            e.signup_opens_at, e.signup_closes_at, e.points_schema,
             (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'registered')::int AS registered,
             (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'waitlisted')::int AS waitlisted
        FROM events e
@@ -80,13 +81,20 @@ export async function listAdminEvents() {
     id: e.id,
     slug: e.slug,
     name: e.name,
+    description: e.description ?? null,
     entryType: e.entry_type,
     status: e.status,
     capacity: e.capacity,
+    waitlistEnabled: e.waitlist_enabled,
+    minTeamSize: e.min_team_size,
+    maxTeamSize: e.max_team_size,
     startsAt: e.starts_at ? new Date(e.starts_at).toISOString() : null,
+    endsAt: e.ends_at ? new Date(e.ends_at).toISOString() : null,
     location: e.location,
+    locationNote: e.location_note ?? null,
     signupOpensAt: e.signup_opens_at ? new Date(e.signup_opens_at).toISOString() : null,
     signupClosesAt: e.signup_closes_at ? new Date(e.signup_closes_at).toISOString() : null,
+    pointsSchema: e.points_schema ?? null,
     registered: Number(e.registered),
     waitlisted: Number(e.waitlisted),
   }));

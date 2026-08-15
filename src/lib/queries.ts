@@ -26,11 +26,13 @@ export async function getStandings(): Promise<StandingRow[]> {
     color_hex: string;
     points: number;
     events_scored: string;
+    member_count: string;
     sort_order: number;
   }>(
     `SELECT c.id, c.name, c.icon_key, c.color_hex, c.sort_order,
             COALESCE(SUM(CASE WHEN e.status='complete' THEN s.points ELSE 0 END),0)::float8 AS points,
-            COUNT(DISTINCT CASE WHEN e.status='complete' THEN s.event_id END)::text AS events_scored
+            COUNT(DISTINCT CASE WHEN e.status='complete' THEN s.event_id END)::text AS events_scored,
+            (SELECT count(*) FROM users u WHERE u.cohort_id = c.id)::text AS member_count
        FROM cohorts c
        LEFT JOIN scores s ON s.cohort_id = c.id
        LEFT JOIN events e ON e.id = s.event_id
@@ -55,6 +57,7 @@ export async function getStandings(): Promise<StandingRow[]> {
       colorHex: r.color_hex,
       points,
       eventsScored: Number(r.events_scored),
+      memberCount: Number(r.member_count),
       rank,
     };
   });

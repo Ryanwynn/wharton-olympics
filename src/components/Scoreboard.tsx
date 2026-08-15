@@ -157,6 +157,8 @@ function StandingsTable({
                     <span className="min-w-0">
                       <span className="block font-serif text-lg font-semibold text-penn-blue">{row.name}</span>
                       <span className="block text-xs text-ink-muted">
+                        <span className="tabular font-medium text-ink">{row.memberCount}</span> {row.memberCount === 1 ? "member" : "members"}
+                        {" · "}
                         {row.eventsScored} {row.eventsScored === 1 ? "event" : "events"} scored
                         {leader && <span className="ml-2 rounded bg-penn-blue px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">Leading</span>}
                       </span>

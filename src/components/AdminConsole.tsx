@@ -3,7 +3,8 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtDayTime, fmtTime } from "@/lib/time";
-import { entryTypeLabel, eventStatusLabel } from "@/lib/format";
+import { entryTypeLabel, eventStatusLabel, toDatetimeLocal } from "@/lib/format";
+import { BulkEventGrid } from "./BulkEventGrid";
 import type { CohortOption } from "@/lib/queries";
 
 export interface AdminEvent {
@@ -36,7 +37,7 @@ export interface AuditEntry {
   createdAt: string;
 }
 
-async function api(url: string, opts: RequestInit = {}) {
+export async function api(url: string, opts: RequestInit = {}) {
   const res = await fetch(url, { ...opts, headers: { "content-type": "application/json", ...(opts.headers || {}) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
@@ -88,6 +89,7 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
   const [error, setError] = useState<string | null>(null);
   const [openRoster, setOpenRoster] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [gridMode, setGridMode] = useState(false);
 
   async function toggle(ev: AdminEvent) {
     setError(null);
@@ -111,10 +113,16 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="rounded-md bg-penn-red/5 px-3 py-2 text-sm text-penn-red">{error}</p>}
-      <button onClick={() => setCreating((v) => !v)} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white hover:bg-penn-blue-hover">
-        {creating ? "Close" : "+ New event"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => { setCreating((v) => !v); setGridMode(false); }} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white hover:bg-penn-blue-hover">
+          {creating ? "Close" : "+ New event"}
+        </button>
+        <button onClick={() => { setGridMode((v) => !v); setCreating(false); }} className="rounded-md border border-penn-blue px-4 py-2 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
+          {gridMode ? "Close grid" : "Grid editor (bulk)"}
+        </button>
+      </div>
       {creating && <EventForm onDone={() => { setCreating(false); router.refresh(); }} />}
+      {gridMode && <BulkEventGrid events={events} onSaved={() => router.refresh()} />}
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[640px] text-left text-sm">
@@ -206,14 +214,6 @@ function StatusTag({ status }: { status: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${map[status] ?? "bg-surface-alt"}`}>{eventStatusLabel(status)}</span>;
 }
 
-/** Convert a stored ISO timestamp to a `datetime-local` value in the browser's tz. */
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 function initialForm(event?: AdminEvent) {
   if (!event) {
     return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
@@ -229,10 +229,10 @@ function initialForm(event?: AdminEvent) {
     max_team_size: event.maxTeamSize ?? 5,
     location: event.location ?? "",
     location_note: event.locationNote ?? "",
-    starts_at: toLocalInput(event.startsAt),
-    ends_at: toLocalInput(event.endsAt),
-    signup_opens_at: toLocalInput(event.signupOpensAt),
-    signup_closes_at: toLocalInput(event.signupClosesAt),
+    starts_at: toDatetimeLocal(event.startsAt),
+    ends_at: toDatetimeLocal(event.endsAt),
+    signup_opens_at: toDatetimeLocal(event.signupOpensAt),
+    signup_closes_at: toDatetimeLocal(event.signupClosesAt),
     p1: ps["1"] ?? 15, p2: ps["2"] ?? 10, p3: ps["3"] ?? 6, pp: ps["participation"] ?? 2,
   } as any;
 }

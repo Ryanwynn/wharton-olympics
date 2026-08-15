@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { query, queryOne } from "@/lib/db";
-import { route, readJson, jsonError, clientIp } from "@/lib/api";
+import { route, readJson, jsonError } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { rateLimitAll, MINUTE } from "@/lib/ratelimit";
 import { writeAudit } from "@/lib/audit";
+import { changeUserCohort } from "@/lib/registration";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,37 +36,38 @@ export const PATCH = route(async (req) => {
   if (tripped) return jsonError("Slow down a moment and try again.", 429);
 
   const body = await readJson<{ display_name?: string; cohort_id?: string }>(req);
-  const updates: string[] = [];
-  const params: unknown[] = [];
+  if (body.display_name === undefined && body.cohort_id === undefined) {
+    return jsonError("Nothing to update.", 400);
+  }
 
   if (body.display_name !== undefined) {
     const name = body.display_name.trim();
     if (name.length < 2 || name.length > 80) return jsonError("Enter a name between 2 and 80 characters.", 400);
-    params.push(name);
-    updates.push(`display_name = $${params.length}`);
+    await query(`UPDATE users SET display_name = $1 WHERE id = $2`, [name, user.id]);
   }
 
+  // Cluster change runs the cascade: leave mismatched teams, keep individual
+  // registrations, and move individual-event points to the new cluster.
+  let teamsLeft = 0;
+  let cohortChanged = false;
   if (body.cohort_id !== undefined) {
-    const cohort = await queryOne(
-      `SELECT id FROM cohorts WHERE id = $1 AND season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)`,
-      [body.cohort_id]
-    );
-    if (!cohort) return jsonError("Pick a valid cluster.", 400);
-    params.push(body.cohort_id);
-    updates.push(`cohort_id = $${params.length}`);
+    const result = await changeUserCohort(user.id, body.cohort_id);
+    cohortChanged = result.changed;
+    teamsLeft = result.teamsLeft;
   }
 
-  if (updates.length === 0) return jsonError("Nothing to update.", 400);
-
-  params.push(user.id);
-  const updated = await queryOne<any>(
-    `UPDATE users SET ${updates.join(", ")} WHERE id = $${params.length} RETURNING id, display_name, cohort_id`,
-    params
-  );
+  const updated = await queryOne<any>(`SELECT id, display_name, cohort_id FROM users WHERE id = $1`, [user.id]);
   await writeAudit({ actorId: user.id, action: "update", entityType: "user", entityId: user.id, after: updated });
+
+  if (cohortChanged) {
+    revalidatePath("/");
+    revalidatePath("/api/standings");
+  }
 
   return NextResponse.json({
     ok: true,
+    cohortChanged,
+    teamsLeft,
     user: { id: updated.id, displayName: updated.display_name, cohortId: updated.cohort_id },
   });
 });

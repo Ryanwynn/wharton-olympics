@@ -168,8 +168,9 @@ export async function getCohorts(): Promise<CohortOption[]> {
 /** The viewer's teams keyed by event, with member rosters (for /events and /me). */
 async function getViewerTeams(userId: string): Promise<Map<string, ViewerTeam>> {
   const teams = await query<any>(
-    `SELECT t.id, t.event_id, t.name, t.status, t.captain_id, t.invite_code
+    `SELECT t.id, t.event_id, t.name, t.status, t.captain_id, t.invite_code, c.name AS cohort_name
        FROM teams t JOIN team_members m ON m.team_id = t.id
+       LEFT JOIN cohorts c ON c.id = t.cohort_id
       WHERE m.user_id = $1`,
     [userId]
   );
@@ -184,6 +185,7 @@ async function getViewerTeams(userId: string): Promise<Map<string, ViewerTeam>> 
       id: t.id,
       name: t.name,
       status: t.status,
+      cohortName: t.cohort_name ?? null,
       isCaptain: t.captain_id === userId,
       inviteCode: t.captain_id === userId ? t.invite_code : null, // only the captain sees the code
       memberCount: members.length,
@@ -208,25 +210,27 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
       ORDER BY e.starts_at ASC NULLS LAST, e.sort_order ASC`
   );
 
-  // Teams with open spots, joinable directly (no invite code) — grouped by event.
-  const joinable = new Map<string, { id: string; name: string; status: string; memberCount: number }[]>();
-  const openTeamRows = await query<any>(
-    `SELECT t.id, t.event_id, t.name, t.status,
+  // All active cluster teams per published event (with their cluster), so the UI can
+  // show cluster coverage and gate join to the viewer's own cluster.
+  const teamsByEvent = new Map<string, { id: string; name: string; status: string; memberCount: number; cohortId: string | null; cohortName: string | null }[]>();
+  const teamRows = await query<any>(
+    `SELECT t.id, t.event_id, t.name, t.status, t.cohort_id, c.name AS cohort_name,
             (SELECT count(*) FROM team_members tm WHERE tm.team_id = t.id)::int AS member_count
        FROM teams t JOIN events e ON e.id = t.event_id
+       LEFT JOIN cohorts c ON c.id = t.cohort_id
       WHERE e.season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)
         AND e.status = 'published' AND t.status <> 'withdrawn'
-        AND (SELECT count(*) FROM team_members tm WHERE tm.team_id = t.id) < COALESCE(e.max_team_size, 999999)
-      ORDER BY t.created_at ASC`
+      ORDER BY c.sort_order ASC NULLS LAST, t.created_at ASC`
   );
-  for (const t of openTeamRows) {
-    const list = joinable.get(t.event_id) ?? [];
-    list.push({ id: t.id, name: t.name, status: t.status, memberCount: Number(t.member_count) });
-    joinable.set(t.event_id, list);
+  for (const t of teamRows) {
+    const list = teamsByEvent.get(t.event_id) ?? [];
+    list.push({ id: t.id, name: t.name, status: t.status, memberCount: Number(t.member_count), cohortId: t.cohort_id ?? null, cohortName: t.cohort_name ?? null });
+    teamsByEvent.set(t.event_id, list);
   }
 
   let myRegs = new Map<string, { status: string; pos: number | null }>();
   let myTeams = new Map<string, ViewerTeam>();
+  let viewerCohort: { id: string; name: string } | null = null;
   if (userId) {
     const regs = await query<any>(
       `SELECT event_id, status, waitlist_pos FROM registrations
@@ -235,6 +239,11 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
     );
     myRegs = new Map(regs.map((r) => [r.event_id, { status: r.status, pos: r.waitlist_pos }]));
     myTeams = await getViewerTeams(userId);
+    const vc = await queryOne<any>(
+      `SELECT c.id, c.name FROM users u JOIN cohorts c ON c.id = u.cohort_id WHERE u.id = $1`,
+      [userId]
+    );
+    viewerCohort = vc ? { id: vc.id, name: vc.name } : null;
   }
 
   // Build the viewer's active time ranges for conflict detection (§6.2).
@@ -301,8 +310,10 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
       spotsRemaining,
       liveScore: e.live_score ?? null,
       hasBracket: Boolean(e.has_bracket),
-      joinableTeams: team ? [] : joinable.get(e.id) ?? [], // hide if the viewer already has a team
-      viewer: userId ? { registrationStatus, waitlistPos: indiv?.pos ?? null, team } : null,
+      teams: team ? [] : teamsByEvent.get(e.id) ?? [], // hide the list if the viewer already has a team
+      viewer: userId
+        ? { registrationStatus, waitlistPos: indiv?.pos ?? null, team, cohortId: viewerCohort?.id ?? null, cohortName: viewerCohort?.name ?? null }
+        : null,
       conflictsWith,
     } satisfies BrowseEvent;
   });

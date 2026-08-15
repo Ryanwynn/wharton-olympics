@@ -257,16 +257,18 @@ export async function seed(): Promise<void> {
       }
     }
 
-    // ── Team events: teams (single-cohort), registrations (+ scores for complete) ─
+    // ── Team events: ONE team per cluster (§ cluster-bound teams), regs (+ scores) ─
+    const COHORT_LABEL: Record<string, string> = {};
+    for (let i = 0; i < cohortIds.length; i++) COHORT_LABEL[cohortIds[i]] = COHORTS[i].name;
     for (const e of EVENTS.filter((x) => x.entry === "team" && x.status !== "draft")) {
       const eventId = eventIds[e.slug];
-      const teamCount = Math.min(e.capacity, e.status === "published" ? 4 + rand(4) : e.capacity);
-      const usableCohorts = shuffle(cohortIds);
+      // One team per cohort, capped at capacity (teams count as entrants).
+      const cohortsForEvent = shuffle([...cohortIds]).slice(0, Math.min(cohortIds.length, e.capacity));
       const teamRegs: { regId: string; cohortId: string }[] = [];
       const takenUsers = new Set<string>();
       const usedNames = new Set<string>();
-      for (let ti = 0; ti < teamCount; ti++) {
-        const cohortId = usableCohorts[ti % usableCohorts.length];
+      for (let ci = 0; ci < cohortsForEvent.length; ci++) {
+        const cohortId = cohortsForEvent[ci];
         const members = shuffle(userIds.filter((u) => userCohort[u] === cohortId && !takenUsers.has(u))).slice(
           0,
           e.min! + rand((e.max ?? e.min!) - e.min! + 1)
@@ -274,19 +276,17 @@ export async function seed(): Promise<void> {
         if (members.length < e.min!) continue;
         members.forEach((m) => takenUsers.add(m));
         const captain = members[0];
-        // Some upcoming teams stay 'forming' (below min → but we only create ≥min);
-        // mark a couple upcoming teams 'forming' explicitly to show that state.
-        const status =
-          e.status === "published" && ti % 3 === 0 ? "forming" : e.status === "complete" ? "registered" : "registered";
+        // Mark a couple of upcoming teams 'forming' to show that state.
+        const status = e.status === "published" && ci % 3 === 0 ? "forming" : "registered";
         const suffixes = ["Crew", "Squad", "Union", "Collective", "Five", "Alliance", "Pack"];
-        let teamName = `${pick(FIRST)}'s ${pick(suffixes)}`;
-        while (usedNames.has(teamName)) teamName = `${pick(FIRST)}'s ${pick(suffixes)} ${rand(999)}`;
+        let teamName = `${COHORT_LABEL[cohortId]} ${pick(suffixes)}`;
+        while (usedNames.has(teamName)) teamName = `${COHORT_LABEL[cohortId]} ${pick(suffixes)} ${rand(999)}`;
         usedNames.add(teamName);
         const team = (
           await t.query<{ id: string }>(
-            `INSERT INTO teams (event_id, name, captain_id, invite_code, status)
-             VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-            [eventId, teamName, captain, generateInviteCode(), status]
+            `INSERT INTO teams (event_id, name, captain_id, cohort_id, invite_code, status)
+             VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+            [eventId, teamName, captain, cohortId, generateInviteCode(), status]
           )
         ).rows[0];
         for (const m of members) {

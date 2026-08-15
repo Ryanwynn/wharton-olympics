@@ -96,11 +96,14 @@ CREATE TABLE IF NOT EXISTS teams (
   event_id      uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name          text NOT NULL,
   captain_id    uuid NOT NULL REFERENCES users(id),
+  cohort_id     uuid REFERENCES cohorts(id),        -- a team represents one cluster
   invite_code   text NOT NULL UNIQUE,
   status        team_status NOT NULL DEFAULT 'forming',
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (event_id, name)
 );
+-- At most one team per cluster per event; only same-cluster users may join it.
+CREATE UNIQUE INDEX IF NOT EXISTS one_team_per_cohort ON teams (event_id, cohort_id);
 
 CREATE TABLE IF NOT EXISTS team_members (
   team_id       uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,

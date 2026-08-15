@@ -48,6 +48,7 @@ export interface ViewerTeam {
   id: string;
   name: string;
   status: string; // forming | registered | waitlisted | withdrawn
+  cohortName: string | null;
   isCaptain: boolean;
   inviteCode: string | null;
   memberCount: number;
@@ -76,11 +77,13 @@ export interface BrowseEvent {
   spotsRemaining: number | null;
   liveScore: string | null;
   hasBracket: boolean;
-  joinableTeams: { id: string; name: string; status: string; memberCount: number }[];
+  teams: { id: string; name: string; status: string; memberCount: number; cohortId: string | null; cohortName: string | null }[];
   viewer: {
     registrationStatus: "registered" | "waitlisted" | "none";
     waitlistPos: number | null;
     team: ViewerTeam | null;
+    cohortId: string | null;
+    cohortName: string | null;
   } | null;
   conflictsWith: { name: string; startsAt: string | null } | null;
 }

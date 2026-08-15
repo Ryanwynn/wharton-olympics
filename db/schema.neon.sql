@@ -98,11 +98,13 @@ CREATE TABLE teams (
   event_id      uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name          text NOT NULL,
   captain_id    uuid NOT NULL REFERENCES users(id),
+  cohort_id     uuid REFERENCES cohorts(id),
   invite_code   text NOT NULL UNIQUE,
   status        team_status NOT NULL DEFAULT 'forming',
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (event_id, name)
 );
+CREATE UNIQUE INDEX one_team_per_cohort ON teams (event_id, cohort_id);
 
 CREATE TABLE team_members (
   team_id       uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,

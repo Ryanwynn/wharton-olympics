@@ -4,9 +4,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtDayTime, fmtTime } from "@/lib/time";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MascotIcon } from "./MascotIcon";
 import type { AgendaItem } from "@/lib/types";
+import type { CohortOption } from "@/lib/queries";
 
-export function MyEvents({ items }: { items: AgendaItem[] }) {
+export function MyEvents({
+  items,
+  cohorts,
+  currentCohortId,
+}: {
+  items: AgendaItem[];
+  cohorts: CohortOption[];
+  currentCohortId: string | null;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +59,8 @@ export function MyEvents({ items }: { items: AgendaItem[] }) {
           {error}
         </p>
       )}
+
+      <ClusterSettings cohorts={cohorts} currentCohortId={currentCohortId} />
 
       {items.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface-alt p-8 text-center">
@@ -153,6 +165,96 @@ export function MyEvents({ items }: { items: AgendaItem[] }) {
         }}
         onCancel={() => setConfirmState(null)}
       />
+    </div>
+  );
+}
+
+function ClusterSettings({ cohorts, currentCohortId }: { cohorts: CohortOption[]; currentCohortId: string | null }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string | null>(currentCohortId);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const current = cohorts.find((c) => c.id === currentCohortId) ?? null;
+
+  async function save() {
+    if (!selected || selected === currentCohortId) {
+      setEditing(false);
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cohort_id: selected }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Could not update your cluster.");
+      setMsg(`Cluster updated${d.teamsLeft ? ` — you were removed from ${d.teamsLeft} old-cluster team${d.teamsLeft === 1 ? "" : "s"}` : ""}.`);
+      setEditing(false);
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {current && <MascotIcon icon={current.iconKey} size={26} color={current.colorHex} />}
+          <div>
+            <div className="text-xs uppercase tracking-wide text-ink-muted">Your cluster</div>
+            <div className="font-serif text-lg font-semibold text-penn-blue">{current?.name ?? "Not set"}</div>
+          </div>
+        </div>
+        {!editing && (
+          <button onClick={() => { setSelected(currentCohortId); setMsg(null); setEditing(true); }} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-alt">
+            Change
+          </button>
+        )}
+      </div>
+      {msg && <p className="mt-2 text-sm font-medium text-cohort-dragon">{msg}</p>}
+      {err && <p className="mt-2 text-sm text-penn-red">{err}</p>}
+      {editing && (
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {cohorts.map((c) => {
+              const sel = selected === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelected(c.id)}
+                  aria-pressed={sel}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left ${sel ? "border-penn-blue bg-penn-blue-tint" : "border-border bg-surface hover:bg-surface-alt"}`}
+                >
+                  <MascotIcon icon={c.iconKey} size={24} color={c.colorHex} />
+                  <span className="font-serif font-semibold text-penn-blue">{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-ink-muted">
+            Changing clusters removes you from any team you joined for your old cluster. You keep your individual-event
+            registrations, and your individual points move to the new cluster.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={save} disabled={busy || !selected || selected === currentCohortId} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {busy ? "Saving…" : "Save cluster"}
+            </button>
+            <button onClick={() => setEditing(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

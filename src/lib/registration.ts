@@ -133,7 +133,22 @@ export async function withdrawIndividual(userId: string, eventId: string): Promi
   });
 }
 
+async function userCohort(t: Queryable, userId: string): Promise<string | null> {
+  const r = (await t.query<{ cohort_id: string | null }>(`SELECT cohort_id FROM users WHERE id = $1`, [userId])).rows[0];
+  return r?.cohort_id ?? null;
+}
+
+async function assertSameCluster(t: Queryable, userId: string, teamCohortId: string | null) {
+  if (!teamCohortId) return; // legacy team without a cluster — allow
+  const cohortId = await userCohort(t, userId);
+  if (!cohortId) throw new RegError(400, "Set your cluster on your profile before joining a team.");
+  if (cohortId !== teamCohortId)
+    throw new RegError(403, "That team is for a different cluster — you can only join your own cluster's team.");
+}
+
 // ── Teams ──────────────────────────────────────────────────────────────────────
+// Teams are cluster-bound: exactly one team per cluster per event, and only users
+// with that cluster affiliation may join it.
 export async function createTeam(userId: string, eventId: string, name: string) {
   const clean = name.trim();
   if (clean.length < 2 || clean.length > 60) throw new RegError(400, "Team name must be 2–60 characters.");
@@ -142,10 +157,17 @@ export async function createTeam(userId: string, eventId: string, name: string) 
     if (ev.entry_type !== "team") throw new RegError(400, "This is an individual event.");
     assertSignupOpen(ev);
 
+    const cohortId = await userCohort(t, userId);
+    if (!cohortId) throw new RegError(400, "Set your cluster on your profile before creating a team.");
+
     const already = (
       await t.query(`SELECT 1 FROM team_members WHERE user_id = $1 AND event_id = $2`, [userId, eventId])
     ).rows[0];
     if (already) throw new RegError(409, "You're already on a team for this event.");
+
+    // One team per cluster per event.
+    const clusterTeam = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND cohort_id = $2`, [eventId, cohortId])).rows[0];
+    if (clusterTeam) throw new RegError(409, "Your cluster already has a team for this event — join it instead.");
 
     const dup = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND lower(name) = lower($2)`, [eventId, clean])).rows[0];
     if (dup) throw new RegError(409, "A team with that name already exists for this event.");
@@ -160,9 +182,9 @@ export async function createTeam(userId: string, eventId: string, name: string) 
 
     const team = (
       await t.query<{ id: string }>(
-        `INSERT INTO teams (event_id, name, captain_id, invite_code, status)
-         VALUES ($1, $2, $3, $4, 'forming') RETURNING id`,
-        [eventId, clean, userId, invite]
+        `INSERT INTO teams (event_id, name, captain_id, cohort_id, invite_code, status)
+         VALUES ($1, $2, $3, $4, $5, 'forming') RETURNING id`,
+        [eventId, clean, userId, cohortId, invite]
       )
     ).rows[0];
     await t.query(`INSERT INTO team_members (team_id, user_id, event_id) VALUES ($1, $2, $3)`, [team.id, userId, eventId]);
@@ -175,8 +197,8 @@ export async function createTeam(userId: string, eventId: string, name: string) 
 export async function joinTeam(userId: string, inviteCode: string) {
   return tx(async (t) => {
     const team = (
-      await t.query<{ id: string; event_id: string; name: string }>(
-        `SELECT id, event_id, name FROM teams WHERE invite_code = $1`,
+      await t.query<{ id: string; event_id: string; name: string; cohort_id: string | null }>(
+        `SELECT id, event_id, name, cohort_id FROM teams WHERE invite_code = $1`,
         [inviteCode.trim().toUpperCase()]
       )
     ).rows[0];
@@ -184,6 +206,7 @@ export async function joinTeam(userId: string, inviteCode: string) {
 
     const ev = await lockEvent(t, team.event_id);
     assertSignupOpen(ev);
+    await assertSameCluster(t, userId, team.cohort_id);
 
     const already = (
       await t.query(`SELECT 1 FROM team_members WHERE user_id = $1 AND event_id = $2`, [userId, team.event_id])
@@ -203,12 +226,13 @@ export async function joinTeam(userId: string, inviteCode: string) {
 export async function joinTeamById(userId: string, teamId: string) {
   return tx(async (t) => {
     const team = (
-      await t.query<{ id: string; event_id: string; name: string }>(`SELECT id, event_id, name FROM teams WHERE id = $1`, [teamId])
+      await t.query<{ id: string; event_id: string; name: string; cohort_id: string | null }>(`SELECT id, event_id, name, cohort_id FROM teams WHERE id = $1`, [teamId])
     ).rows[0];
     if (!team) throw new RegError(404, "That team no longer exists.");
 
     const ev = await lockEvent(t, team.event_id);
     assertSignupOpen(ev);
+    await assertSameCluster(t, userId, team.cohort_id);
 
     const already = (
       await t.query(`SELECT 1 FROM team_members WHERE user_id = $1 AND event_id = $2`, [userId, team.event_id])
@@ -224,37 +248,82 @@ export async function joinTeamById(userId: string, teamId: string) {
   });
 }
 
+async function leaveTeamTx(t: Queryable, userId: string, teamId: string) {
+  const team = (
+    await t.query<{ id: string; event_id: string; captain_id: string }>(
+      `SELECT id, event_id, captain_id FROM teams WHERE id = $1`,
+      [teamId]
+    )
+  ).rows[0];
+  if (!team) throw new RegError(404, "Team not found.");
+  await lockEvent(t, team.event_id);
+
+  const member = (await t.query(`SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId])).rows[0];
+  if (!member) throw new RegError(400, "You're not on this team.");
+
+  await t.query(`DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId]);
+
+  const remaining = await teamMembers(t, teamId);
+  if (remaining.length === 0) {
+    // Last member left — withdraw any registration and delete the team.
+    await t.query(`UPDATE registrations SET status = 'withdrawn', waitlist_pos = NULL WHERE team_id = $1 AND status <> 'withdrawn'`, [teamId]);
+    await promoteNextWaitlisted(t, team.event_id);
+    await resequenceWaitlist(t, team.event_id);
+    await t.query(`DELETE FROM teams WHERE id = $1`, [teamId]);
+    return { deleted: true };
+  }
+  if (team.captain_id === userId) {
+    // Reassign captaincy to the earliest remaining member.
+    await t.query(`UPDATE teams SET captain_id = $1 WHERE id = $2`, [remaining[0], teamId]);
+  }
+  await reevaluateTeam(t, teamId);
+  return { deleted: false, status: await teamStatus(t, teamId) };
+}
+
 export async function leaveTeam(userId: string, teamId: string) {
+  return tx((t) => leaveTeamTx(t, userId, teamId));
+}
+
+/**
+ * Change a user's cluster affiliation (§ profile edit). Also used for the initial
+ * profile set. When the cluster changes we:
+ *   1. update users.cohort_id,
+ *   2. remove the user from any teams that are now a mismatched cluster (individual
+ *      registrations are untouched),
+ *   3. move the points from their individual-event scores to the new cluster
+ *      (update scores.cohort_id) so standings reflect the new affiliation.
+ */
+export async function changeUserCohort(userId: string, newCohortId: string) {
   return tx(async (t) => {
-    const team = (
-      await t.query<{ id: string; event_id: string; captain_id: string }>(
-        `SELECT id, event_id, captain_id FROM teams WHERE id = $1`,
-        [teamId]
-      )
+    const cohort = (
+      await t.query(`SELECT id FROM cohorts WHERE id = $1 AND season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)`, [newCohortId])
     ).rows[0];
-    if (!team) throw new RegError(404, "Team not found.");
-    await lockEvent(t, team.event_id);
+    if (!cohort) throw new RegError(400, "Pick a valid cluster.");
 
-    const member = (await t.query(`SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId])).rows[0];
-    if (!member) throw new RegError(400, "You're not on this team.");
+    const u = (await t.query<{ cohort_id: string | null }>(`SELECT cohort_id FROM users WHERE id = $1`, [userId])).rows[0];
+    if (!u) throw new RegError(404, "User not found.");
+    if (u.cohort_id === newCohortId) return { changed: false, teamsLeft: 0 };
 
-    await t.query(`DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId]);
+    await t.query(`UPDATE users SET cohort_id = $1 WHERE id = $2`, [newCohortId, userId]);
 
-    const remaining = await teamMembers(t, teamId);
-    if (remaining.length === 0) {
-      // Last member left — withdraw any registration and delete the team.
-      await t.query(`UPDATE registrations SET status = 'withdrawn', waitlist_pos = NULL WHERE team_id = $1 AND status <> 'withdrawn'`, [teamId]);
-      await promoteNextWaitlisted(t, team.event_id);
-      await resequenceWaitlist(t, team.event_id);
-      await t.query(`DELETE FROM teams WHERE id = $1`, [teamId]);
-      return { deleted: true };
-    }
-    if (team.captain_id === userId) {
-      // Reassign captaincy to the earliest remaining member.
-      await t.query(`UPDATE teams SET captain_id = $1 WHERE id = $2`, [remaining[0], teamId]);
-    }
-    await reevaluateTeam(t, teamId);
-    return { deleted: false, status: await teamStatus(t, teamId) };
+    // Leave every team that isn't the new cluster's team (keeps individual regs).
+    const teams = (
+      await t.query<{ id: string }>(
+        `SELECT t.id FROM team_members tm JOIN teams t ON t.id = tm.team_id
+          WHERE tm.user_id = $1 AND t.cohort_id IS DISTINCT FROM $2`,
+        [userId, newCohortId]
+      )
+    ).rows;
+    for (const tm of teams) await leaveTeamTx(t, userId, tm.id);
+
+    // Individual-event points now count for the new cluster.
+    await t.query(
+      `UPDATE scores SET cohort_id = $1 FROM registrations r
+        WHERE scores.registration_id = r.id AND r.user_id = $2`,
+      [newCohortId, userId]
+    );
+
+    return { changed: true, teamsLeft: teams.length };
   });
 }
 

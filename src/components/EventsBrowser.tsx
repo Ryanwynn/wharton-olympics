@@ -307,38 +307,47 @@ function TeamArea({
   if (state.notYetOpen) return <DisabledBtn label={`Opens ${fmtOpensLabel(e.signupOpensAt)}`} />;
   if (state.closed) return <DisabledBtn label="Closed" />;
 
-  const openTeams = e.joinableTeams ?? [];
+  // Cluster-bound teams: you play on your own cluster's single team.
+  const cohortId = e.viewer?.cohortId ?? null;
+  const cohortName = e.viewer?.cohortName ?? null;
+  if (!cohortId) {
+    return (
+      <p className="text-sm text-ink-muted">
+        Set your cluster on{" "}
+        <Link href="/me" className="font-semibold text-penn-blue">
+          your profile
+        </Link>{" "}
+        to join or create a team.
+      </p>
+    );
+  }
+
+  const allTeams = e.teams ?? [];
+  const myTeam = allTeams.find((t) => t.cohortId === cohortId) ?? null;
+  const others = allTeams.filter((t) => t.cohortId !== cohortId);
+  const myTeamFull = myTeam != null && e.maxTeamSize != null && myTeam.memberCount >= e.maxTeamSize;
+
   return (
     <div className="space-y-2">
-      {/* Join an existing team with one tap — no invite code needed. */}
-      {openTeams.length > 0 && !creating && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-ink-muted">Join a team</p>
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {openTeams.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                <span className="min-w-0 text-sm">
-                  <span className="font-medium text-ink">{t.name}</span>
-                  <span className="ml-1 text-xs text-ink-muted">
-                    {t.memberCount}/{e.maxTeamSize} · {t.status === "forming" ? `needs ${Math.max(0, (e.minTeamSize ?? 0) - t.memberCount)} more` : "registered"}
-                  </span>
-                </span>
-                <button
-                  onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).catch(() => {})}
-                  disabled={busy}
-                  className="shrink-0 rounded-md bg-penn-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-50"
-                >
-                  Join
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <p className="text-xs text-ink-muted">
+        Teams are per cluster — you play on the <span className="font-medium text-penn-blue">{cohortName}</span> team.
+      </p>
 
-      {!creating ? (
+      {myTeam ? (
+        myTeamFull ? (
+          <DisabledBtn label={`${cohortName} team is full`} />
+        ) : (
+          <button
+            onClick={() => call(`/api/teams/${myTeam.id}/join`, { method: "POST" }).catch(() => {})}
+            disabled={busy}
+            className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
+          >
+            {busy ? "Joining…" : `Join the ${cohortName} team (${myTeam.memberCount}/${e.maxTeamSize})`}
+          </button>
+        )
+      ) : !creating ? (
         <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
-          {openTeams.length > 0 ? "Or start a new team" : "Start a team"}
+          Create the {cohortName} team
         </button>
       ) : (
         <form
@@ -348,7 +357,7 @@ function TeamArea({
           }}
           className="space-y-2"
         >
-          <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder="Team name" className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+          <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
           <div className="flex gap-2">
             <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {busy ? "Creating…" : "Create team"}
@@ -358,6 +367,12 @@ function TeamArea({
             </button>
           </div>
         </form>
+      )}
+
+      {others.length > 0 && (
+        <p className="text-xs text-ink-muted">
+          Other clusters: {others.map((t) => `${t.cohortName ?? "?"} (${t.memberCount})`).join(" · ")}
+        </p>
       )}
     </div>
   );

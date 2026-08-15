@@ -21,6 +21,13 @@ delete process.env.DATABASE_URL;
 
   const season = (await query<any>(`INSERT INTO seasons (name, is_active) VALUES ('test', true) RETURNING id`))[0];
 
+  // Four clusters; users get a cohort so team rules (cluster-bound) can be exercised.
+  const cohortIds: string[] = [];
+  for (const [name, icon] of [["Lions", "lion"], ["Dragons", "dragon"], ["Bees", "bee"], ["Tigers", "tiger"]]) {
+    const c = (await query<any>(`INSERT INTO cohorts (season_id, name, icon_key, sort_order) VALUES ($1,$2,$3,$4) RETURNING id`, [season.id, name, icon, cohortIds.length + 1]))[0];
+    cohortIds.push(c.id);
+  }
+
   // A 50-capacity individual event, signup currently open.
   const ev = (
     await query<any>(
@@ -35,9 +42,11 @@ delete process.env.DATABASE_URL;
 
   const users: string[] = [];
   for (let i = 0; i < 300; i++) {
-    const u = (await query<any>(`INSERT INTO users (email, display_name) VALUES ($1,$2) RETURNING id`, [`u${i}@upenn.edu`, `User ${i}`]))[0];
+    const u = (await query<any>(`INSERT INTO users (email, display_name, cohort_id) VALUES ($1,$2,$3) RETURNING id`, [`u${i}@upenn.edu`, `User ${i}`, cohortIds[i % 4]]))[0];
     users.push(u.id);
   }
+  // Helpers to pick users by cluster (user i is in cohort i % 4).
+  const inCohort = (mod: number) => users.filter((_, i) => i % 4 === mod);
 
   // Fire all 300 "simultaneously" with a per-user idempotency key.
   const t0 = Date.now();
@@ -69,24 +78,49 @@ delete process.env.DATABASE_URL;
       [season.id]
     )
   )[0];
-  const cap = await createTeam(users[100], tev.id, "Alpha");
+  const lions = inCohort(0); // Lions cluster users
+  const dragons = inCohort(1); // Dragons cluster users
+  const cap = await createTeam(lions[10], tev.id, "Lions Alpha");
   const capCountAfterCreate = Number((await query<any>(`SELECT count(*) c FROM registrations WHERE event_id=$1 AND status='registered'`, [tev.id]))[0].c);
   const code = cap.inviteCode;
-  await joinTeam(users[101], code);
+  await joinTeam(lions[11], code);
   const capCountAt2 = Number((await query<any>(`SELECT count(*) c FROM registrations WHERE event_id=$1 AND status='registered'`, [tev.id]))[0].c);
-  await joinTeam(users[102], code); // now at min size 3 → should register (consume slot)
+  await joinTeam(lions[12], code); // now at min size 3 → should register (consume slot)
   const capCountAt3 = Number((await query<any>(`SELECT count(*) c FROM registrations WHERE event_id=$1 AND status='registered'`, [tev.id]))[0].c);
   const teamStatus = (await query<any>(`SELECT status FROM teams WHERE invite_code=$1`, [code]))[0].status;
 
-  console.log("\n── Team min-size gating (min 3, cap 2 teams) ──");
-  console.log({ slotsAfter1member: capCountAfterCreate, slotsAfter2: capCountAt2, slotsAfter3: capCountAt3, teamStatusAt3: teamStatus });
+  // Cluster rules: a different-cluster user can't join, and a second team for the
+  // same cluster can't be created.
+  let diffClusterBlocked = false;
+  try {
+    await joinTeam(dragons[0], code);
+  } catch {
+    diffClusterBlocked = true;
+  }
+  let secondTeamSameClusterBlocked = false;
+  try {
+    await createTeam(lions[20], tev.id, "Lions Beta");
+  } catch {
+    secondTeamSameClusterBlocked = true;
+  }
+
+  console.log("\n── Cluster-bound teams (min 3, cap 2 teams) ──");
+  console.log({
+    slotsAfter1member: capCountAfterCreate,
+    slotsAfter2: capCountAt2,
+    slotsAfter3: capCountAt3,
+    teamStatusAt3: teamStatus,
+    diffClusterBlocked,
+    secondTeamSameClusterBlocked,
+  });
 
   const pass =
     registered === 50 && waitlisted === 250 && dupes === 0 && maxPos === 250 &&
     JSON.stringify(dt1) === JSON.stringify(dt2) &&
-    capCountAfterCreate === 0 && capCountAt2 === 0 && capCountAt3 === 1 && teamStatus === "registered";
+    capCountAfterCreate === 0 && capCountAt2 === 0 && capCountAt3 === 1 && teamStatus === "registered" &&
+    diffClusterBlocked && secondTeamSameClusterBlocked;
 
-  console.log("\n" + (pass ? "✅ PASS — no oversell, waitlist correct, idempotent, team gating correct" : "❌ FAIL"));
+  console.log("\n" + (pass ? "✅ PASS — no oversell, waitlist correct, idempotent, cluster-bound teams correct" : "❌ FAIL"));
   // Hard-exit WITHOUT closing PGlite. Deleting the data dir and then calling close()
   // makes the WASM abort during shutdown (it flushes to a now-missing dir), which
   // taints the exit code even on PASS. Clean up the throwaway dir and exit directly.

@@ -153,8 +153,8 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                           {ev.status === "draft" ? "Publish" : "Unpublish"}
                         </button>
                       )}
-                      {/* Draft (created-but-not-published, or unpublished) events are editable. */}
-                      {ev.status === "draft" && (
+                      {/* Draft and published events are editable. */}
+                      {(ev.status === "draft" || ev.status === "published") && (
                         <button onClick={() => setEditingId(editingId === ev.id ? null : ev.id)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
                           {editingId === ev.id ? "Close" : "Edit"}
                         </button>

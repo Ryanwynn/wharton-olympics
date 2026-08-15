@@ -1,27 +1,30 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toDatetimeLocal } from "@/lib/format";
+import { toDatetimeLocal, eventStatusLabel } from "@/lib/format";
 import { api } from "./AdminConsole";
 import type { AdminEvent } from "./AdminConsole";
 
 /**
- * Spreadsheet-style bulk editor for DRAFT events — organizers fill/edit a grid of
- * many events at once instead of one form at a time. Each dirty row is saved via
- * the same create (POST) / edit (PATCH) endpoints as the single-event form, so a
- * mix of new and existing rows can be saved together. Publish happens from the
- * main table once a draft looks right.
+ * Spreadsheet-style bulk editor for events — organizers fill/edit a grid of many
+ * events at once instead of one form at a time. It shows draft AND published events
+ * (both editable), plus blank rows for new ones. Each dirty row is saved via the
+ * same create (POST) / edit (PATCH) endpoints as the single-event form, so new and
+ * existing rows save together. New rows are created as drafts.
  */
 
 interface Row {
   key: string;
   id?: string;
+  status: string; // event status for existing rows, "new" for blank rows
   name: string;
   entry_type: "individual" | "team";
   capacity: string;
   min_team_size: string;
   max_team_size: string;
   location: string;
+  location_note: string;
+  description: string;
   starts_at: string;
   ends_at: string;
   signup_opens_at: string;
@@ -42,12 +45,15 @@ const newKey = () => `r${nextKey++}`;
 function blankRow(): Row {
   return {
     key: newKey(),
+    status: "new",
     name: "",
     entry_type: "individual",
     capacity: "24",
     min_team_size: "3",
     max_team_size: "5",
     location: "",
+    location_note: "",
+    description: "",
     starts_at: "",
     ends_at: "",
     signup_opens_at: "",
@@ -68,12 +74,15 @@ function fromEvent(e: AdminEvent): Row {
   return {
     key: newKey(),
     id: e.id,
+    status: e.status,
     name: e.name,
     entry_type: e.entryType,
     capacity: e.capacity == null ? "" : String(e.capacity),
     min_team_size: e.minTeamSize == null ? "3" : String(e.minTeamSize),
     max_team_size: e.maxTeamSize == null ? "5" : String(e.maxTeamSize),
     location: e.location ?? "",
+    location_note: e.locationNote ?? "",
+    description: e.description ?? "",
     starts_at: toDatetimeLocal(e.startsAt),
     ends_at: toDatetimeLocal(e.endsAt),
     signup_opens_at: toDatetimeLocal(e.signupOpensAt),
@@ -93,9 +102,11 @@ function buildBody(r: Row) {
   const iso = (v: string) => (v ? new Date(v).toISOString() : null);
   const body: Record<string, unknown> = {
     name: r.name.trim(),
+    description: r.description || null,
     capacity: r.capacity ? Number(r.capacity) : null,
     waitlist_enabled: r.waitlist_enabled,
     location: r.location || null,
+    location_note: r.location_note || null,
     starts_at: iso(r.starts_at),
     ends_at: iso(r.ends_at),
     signup_opens_at: iso(r.signup_opens_at),
@@ -109,10 +120,12 @@ function buildBody(r: Row) {
   return body;
 }
 
+const EDITABLE_STATUSES = new Set(["draft", "published"]);
+
 export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSaved: () => void }) {
   const router = useRouter();
-  const drafts = events.filter((e) => e.status === "draft");
-  const [rows, setRows] = useState<Row[]>(() => [...drafts.map(fromEvent), blankRow(), blankRow()]);
+  const editable = events.filter((e) => EDITABLE_STATUSES.has(e.status));
+  const [rows, setRows] = useState<Row[]>(() => [...editable.map(fromEvent), blankRow(), blankRow()]);
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
 
@@ -140,6 +153,7 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
         } else {
           const res = await api("/api/admin/events", { method: "POST", body: JSON.stringify({ ...body, entry_type: r.entry_type }) });
           r.id = res.id;
+          r.status = "draft";
           created++;
         }
         r.dirty = false;
@@ -162,23 +176,29 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
   return (
     <div className="space-y-3">
       <p className="text-xs text-ink-muted">
-        Add and edit multiple <span className="font-medium">draft</span> events at once. Fill any number of rows and save
-        them together, then publish each from the table above when it&rsquo;s ready. Times are in your local timezone.
+        Add and edit multiple events at once — both <span className="font-medium">draft</span> and{" "}
+        <span className="font-medium">published</span> events are editable here. Fill any number of rows and save them
+        together; new rows are created as drafts. Times are in your local timezone.
       </p>
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="min-w-[1100px] border-collapse text-left">
+        <table className="min-w-[1500px] border-collapse text-left">
           <thead className="bg-surface-alt text-[11px] uppercase tracking-wide text-ink-muted">
             <tr>
-              {["Name", "Type", "Cap", "Min", "Max", "Location", "Starts", "Ends", "Signup opens", "Signup closes", "1st", "2nd", "3rd", "Part.", "WL", ""].map((h) => (
-                <th key={h} className="whitespace-nowrap px-2 py-2 font-semibold">
-                  {h}
-                </th>
-              ))}
+              {["Status", "Name", "Type", "Cap", "Min", "Max", "Location", "Loc. note", "Description", "Starts", "Ends", "Signup opens", "Signup closes", "1st", "2nd", "3rd", "Part.", "WL", ""].map(
+                (h, i) => (
+                  <th key={`${h}-${i}`} className="whitespace-nowrap px-2 py-2 font-semibold">
+                    {h}
+                  </th>
+                )
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.key} className={`border-t border-border align-top ${r.error ? "bg-penn-red/5" : ""}`}>
+                <td className="px-2 py-1.5">
+                  <StatusCell row={r} />
+                </td>
                 <td className="px-2 py-1.5">
                   <input className={`${cell} w-40`} value={r.name} placeholder="Event name" onChange={(e) => update(r.key, { name: e.target.value })} />
                   {r.error && <div className="mt-0.5 max-w-[10rem] text-[11px] text-penn-red">{r.error}</div>}
@@ -200,6 +220,8 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
                 <td className="px-2 py-1.5"><input type="number" disabled={r.entry_type !== "team"} className={`${cell} w-14 disabled:bg-surface-alt`} value={r.entry_type === "team" ? r.min_team_size : ""} onChange={(e) => update(r.key, { min_team_size: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="number" disabled={r.entry_type !== "team"} className={`${cell} w-14 disabled:bg-surface-alt`} value={r.entry_type === "team" ? r.max_team_size : ""} onChange={(e) => update(r.key, { max_team_size: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input className={`${cell} w-36`} value={r.location} onChange={(e) => update(r.key, { location: e.target.value })} /></td>
+                <td className="px-2 py-1.5"><input className={`${cell} w-36`} value={r.location_note} placeholder="e.g. Meet at north gate" onChange={(e) => update(r.key, { location_note: e.target.value })} /></td>
+                <td className="px-2 py-1.5"><input className={`${cell} w-52`} value={r.description} onChange={(e) => update(r.key, { description: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="datetime-local" className={`${cell} w-44`} value={r.starts_at} onChange={(e) => update(r.key, { starts_at: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="datetime-local" className={`${cell} w-44`} value={r.ends_at} onChange={(e) => update(r.key, { ends_at: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="datetime-local" className={`${cell} w-44`} value={r.signup_opens_at} onChange={(e) => update(r.key, { signup_opens_at: e.target.value })} /></td>
@@ -232,4 +254,17 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
       </div>
     </div>
   );
+}
+
+function StatusCell({ row }: { row: Row }) {
+  if (row.status === "new") {
+    return <span className="whitespace-nowrap rounded-full bg-surface-alt px-2 py-0.5 text-[11px] font-semibold text-ink-muted">New</span>;
+  }
+  const cls =
+    row.status === "published"
+      ? "bg-penn-blue-tint text-penn-blue"
+      : row.status === "draft"
+      ? "bg-surface-alt text-ink-muted"
+      : "bg-surface-alt text-ink-muted";
+  return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{eventStatusLabel(row.status)}</span>;
 }

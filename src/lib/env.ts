@@ -14,9 +14,13 @@ export const env = {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
 
+  // Allowed sign-in domains (checked against the Google account's email). The
+  // requested penn.edu / wharton.penn.edu are first; the real Penn domains
+  // (upenn.edu family) are included so login still works if students are on those.
+  // Tighten by setting ALLOWED_EMAIL_DOMAINS.
   allowedEmailDomains: (
     process.env.ALLOWED_EMAIL_DOMAINS ||
-    "upenn.edu,wharton.upenn.edu,seas.upenn.edu,sas.upenn.edu,law.upenn.edu,nursing.upenn.edu,gse.upenn.edu,design.upenn.edu,vet.upenn.edu,pennmedicine.upenn.edu"
+    "penn.edu,wharton.penn.edu,upenn.edu,wharton.upenn.edu,seas.upenn.edu,sas.upenn.edu,nursing.upenn.edu,gse.upenn.edu,design.upenn.edu"
   )
     .split(",")
     .map((s) => s.trim().toLowerCase())
@@ -25,23 +29,14 @@ export const env = {
   sessionTtlDays: Number(process.env.SESSION_TTL_DAYS || "30"),
   privilegedSessionHours: 12, // admin/scorekeeper step-down (§5.5)
 
-  // Code-request rate limits (§5.4), env-overridable. Defaults are more forgiving
-  // than the spec's 3/10/10: repeated testing tripped them, and the per-IP cap must
-  // be generous because hundreds of users on shared campus wifi egress from the same
-  // IPs on event day. Per-email is the real anti-abuse control (plus-tags stripped).
-  rateCodeEmailHour: Number(process.env.RATE_CODE_EMAIL_HOUR || "6"),
-  rateCodeEmailDay: Number(process.env.RATE_CODE_EMAIL_DAY || "20"),
-  rateCodeIpHour: Number(process.env.RATE_CODE_IP_HOUR || "60"),
-
-  // Mailer selection: "console" (dev), "resend" (recommended in prod), or "ses".
-  mailer: (process.env.MAILER || "console").toLowerCase(),
-  // Verified sender on whartonolympics.com (verify the domain in Resend, add its
-  // DNS records). Override per-environment with MAIL_FROM if needed.
-  mailFrom: process.env.MAIL_FROM || process.env.SES_FROM || "Wharton Olympics <noreply@whartonolympics.com>",
-  resendApiKey: process.env.RESEND_API_KEY || "",
-  awsRegion: process.env.AWS_REGION || "us-east-1",
-
-  organizerContact: process.env.ORGANIZER_CONTACT_EMAIL || "olympics@wharton.upenn.edu",
+  // Google OAuth — "Sign in with Google". Create an OAuth 2.0 Client (Web) in the
+  // Google Cloud console; set these in the environment.
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  // Public base URL used to build the OAuth redirect URI (must match the one
+  // registered in Google). e.g. https://whartonolympics.com. Falls back to the
+  // request origin when unset (fine for local dev).
+  appUrl: (process.env.APP_URL || "").replace(/\/+$/, ""),
 
   isProd: process.env.NODE_ENV === "production",
 };

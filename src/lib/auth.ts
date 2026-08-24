@@ -2,8 +2,32 @@ import { cookies } from "next/headers";
 import { query, queryOne } from "./db";
 import { env } from "./env";
 import { generateSessionToken, hashToken } from "./crypto";
+import { prettifyLocalPart } from "./format";
 
 export const SESSION_COOKIE = "wso_session";
+
+/**
+ * Find or create the user for a verified email, flag pre-authorized admins
+ * (SEED_ADMIN_EMAILS), and touch last_seen. Shared by the Google OAuth callback
+ * and the dev login. Assumes the email is already normalized and domain-checked.
+ */
+export async function findOrCreateUser(
+  email: string,
+  name: string | null
+): Promise<{ user: any; needsProfile: boolean }> {
+  let user = await queryOne<any>(`SELECT * FROM users WHERE email = $1`, [email]);
+  if (!user) {
+    user = await queryOne<any>(
+      `INSERT INTO users (email, display_name) VALUES ($1, $2) RETURNING *`,
+      [email, name?.trim() || prettifyLocalPart(email)]
+    );
+  }
+  if (env.seedAdminEmails.includes(email) && !user.is_admin) {
+    user = await queryOne<any>(`UPDATE users SET is_admin = true WHERE id = $1 RETURNING *`, [user.id]);
+  }
+  await query(`UPDATE users SET last_seen_at = now() WHERE id = $1`, [user.id]);
+  return { user, needsProfile: !user.cohort_id };
+}
 
 export interface SessionUser {
   id: string;

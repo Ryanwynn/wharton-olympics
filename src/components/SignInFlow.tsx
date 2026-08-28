@@ -6,12 +6,12 @@ import type { CohortOption } from "@/lib/queries";
 
 export function SignInFlow({
   cohorts,
-  googleEnabled,
+  devLogin,
   domainHint,
   resumeProfile,
 }: {
   cohorts: CohortOption[];
-  googleEnabled: boolean;
+  devLogin: boolean; // show the local-only dev login (never in production)
   domainHint: string;
   // Set when an already-signed-in user still needs to finish their profile
   // (new Google account without a cluster yet). Jumps straight to that step.
@@ -59,7 +59,7 @@ export function SignInFlow({
         your password.
       </p>
 
-      {!googleEnabled && <DevLogin next={next} />}
+      {devLogin && <DevLogin next={next} />}
     </div>
   );
 }

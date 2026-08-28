@@ -23,7 +23,7 @@ export default async function SignInPage({ searchParams }: { searchParams: { nex
     <Suspense>
       <SignInFlow
         cohorts={cohorts}
-        googleEnabled={googleConfigured()}
+        devLogin={!googleConfigured() && !env.isProd}
         domainHint={domainHint}
         resumeProfile={user ? { displayName: user.displayName } : null}
       />

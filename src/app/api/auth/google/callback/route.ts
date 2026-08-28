@@ -17,7 +17,9 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   const oauthError = url.searchParams.get("error");
 
-  const fail = (reason: string) => {
+  const fail = (reason: string, detail: string) => {
+    // eslint-disable-next-line no-console
+    console.error(`[google-callback] fail=${reason} :: ${detail} :: redirect_uri=${oauthRedirectUri(req)} base=${base}`);
     const res = NextResponse.redirect(new URL(`/signin?error=${reason}`, base));
     res.cookies.delete(OAUTH_COOKIE);
     return res;
@@ -25,28 +27,29 @@ export async function GET(req: Request) {
 
   // Validate the CSRF state against the cookie set in /start.
   const raw = cookies().get(OAUTH_COOKIE)?.value;
-  if (oauthError || !code || !state || !raw) return fail("oauth");
+  if (oauthError) return fail("oauth", `google returned error=${oauthError}`);
+  if (!code) return fail("oauth", "no code param on callback");
+  if (!state) return fail("oauth", "no state param on callback");
+  if (!raw) return fail("oauth", "oauth state cookie missing — usually the browsing domain differs from APP_URL / the registered redirect URI (cookie was set on a different origin)");
   let saved: { state: string; next: string };
   try {
     saved = JSON.parse(raw);
   } catch {
-    return fail("oauth");
+    return fail("oauth", "oauth cookie unparseable");
   }
-  if (!saved.state || saved.state !== state) return fail("oauth");
+  if (!saved.state || saved.state !== state) return fail("oauth", "state mismatch (CSRF check)");
 
   // Exchange the code and read the verified Google profile.
   let profile;
   try {
     profile = await exchangeCodeForProfile(code, oauthRedirectUri(req));
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error("google callback:", e);
-    return fail("oauth");
+    return fail("oauth", `token exchange / id_token validation failed: ${(e as Error).message}`);
   }
-  if (!profile.email || !profile.emailVerified) return fail("unverified");
+  if (!profile.email || !profile.emailVerified) return fail("unverified", `email=${profile.email} verified=${profile.emailVerified}`);
 
   const email = normalizeEmail(profile.email);
-  if (!isAllowedDomain(email)) return fail("domain");
+  if (!isAllowedDomain(email)) return fail("domain", `email domain not in allowlist: ${email}`);
 
   const { user, needsProfile } = await findOrCreateUser(email, profile.name);
   const privileged = Boolean(user.is_admin || user.is_scorekeeper);

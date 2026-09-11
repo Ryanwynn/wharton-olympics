@@ -132,16 +132,22 @@ function StandingsTable({
             return (
               <tr
                 key={row.cohortId}
-                className={`border-b border-border last:border-0 ${pulse.has(row.cohortId) ? "animate-row-pulse" : ""} ${
-                  leader ? "bg-penn-blue-tint/60" : ""
-                }`}
-                style={{ boxShadow: `inset 4px 0 0 ${row.colorHex}` }}
+                className={`border-b border-border last:border-0 ${pulse.has(row.cohortId) ? "animate-row-pulse" : ""}`}
+                style={{
+                  // A soft wash in the cluster's own color — an accent, not a fill.
+                  // The leader gets a touch more saturation plus the blue "Leading" cues.
+                  boxShadow: `inset 5px 0 0 ${row.colorHex}`,
+                  backgroundColor: `${row.colorHex}${leader ? "1f" : "12"}`,
+                }}
               >
                 <td className="px-3 py-4 text-center">
                   <span
-                    className={`tabular inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                      leader ? "bg-penn-blue text-white" : "bg-surface-alt text-ink"
-                    }`}
+                    className="tabular inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-ink"
+                    style={
+                      leader
+                        ? { backgroundColor: "var(--penn-blue)", color: "#fff" }
+                        : { backgroundColor: `${row.colorHex}2b`, boxShadow: `inset 0 0 0 1px ${row.colorHex}66` }
+                    }
                   >
                     {row.rank}
                   </span>
@@ -382,7 +388,7 @@ function ScheduleRow({ event }: { event: ScheduleEvent }) {
               {results.slice(0, 8).map((r, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm">
                   <span className="tabular w-6 text-right font-semibold text-ink-muted">{r.placement ?? "–"}</span>
-                  {r.cohortIcon && <MascotIcon icon={r.cohortIcon} size={18} color="var(--penn-blue)" />}
+                  {r.cohortIcon && <MascotIcon icon={r.cohortIcon} size={18} color={r.cohortColor ?? "var(--penn-blue)"} />}
                   <span className="flex-1 truncate text-ink">{r.entrantLabel}</span>
                   <span className="text-xs text-ink-muted">{r.cohortName}</span>
                   <span className="tabular w-14 text-right font-semibold text-ink">{fmtPoints(r.points)} pt</span>

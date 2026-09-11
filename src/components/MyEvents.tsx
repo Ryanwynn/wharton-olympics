@@ -205,7 +205,10 @@ function ClusterSettings({ cohorts, currentCohortId }: { cohorts: CohortOption[]
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div
+      className="rounded-xl border border-border bg-surface p-4"
+      style={current ? { boxShadow: `inset 5px 0 0 ${current.colorHex}`, backgroundColor: `${current.colorHex}0f` } : undefined}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {current && <MascotIcon icon={current.iconKey} size={26} color={current.colorHex} />}

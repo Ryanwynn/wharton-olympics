@@ -36,6 +36,7 @@ export interface EventResultRow {
   entrantLabel: string;
   cohortName: string | null;
   cohortIcon: IconKey | null;
+  cohortColor: string | null;
 }
 
 export interface TeamMemberLite {

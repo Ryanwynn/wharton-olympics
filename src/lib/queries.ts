@@ -128,7 +128,7 @@ export async function getPublicResults(eventId: string): Promise<EventResultRow[
   const rows = await query<any>(
     `SELECT s.placement, s.points::float8::text AS points,
             u.display_name AS user_name, t.name AS team_name,
-            c.name AS cohort_name, c.icon_key AS cohort_icon
+            c.name AS cohort_name, c.icon_key AS cohort_icon, c.color_hex AS cohort_color
        FROM scores s
        JOIN registrations r ON r.id = s.registration_id
        LEFT JOIN users u ON u.id = r.user_id
@@ -144,6 +144,7 @@ export async function getPublicResults(eventId: string): Promise<EventResultRow[
     entrantLabel: r.team_name ? r.team_name : r.user_name ? publicName(r.user_name) : "—",
     cohortName: r.cohort_name ?? null,
     cohortIcon: r.cohort_icon ?? null,
+    cohortColor: r.cohort_color ?? null,
   }));
 }
 

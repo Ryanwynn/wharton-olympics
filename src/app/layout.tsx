@@ -21,9 +21,9 @@ const sans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Wharton Student Olympics",
+  title: "Wharton Cluster Olympics",
   description:
-    "Live schedule and scoreboard for the Wharton Student Olympics. Register for events, follow the standings, cheer your cluster.",
+    "Live schedule and scoreboard for the Wharton Cluster Olympics. Register for events, follow the standings, cheer your cluster.",
   robots: { index: false }, // student-org internal event; not for indexing
 };
 

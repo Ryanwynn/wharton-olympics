@@ -4,7 +4,7 @@ import { getMyAgenda, getCohorts } from "@/lib/queries";
 import { MyEvents } from "@/components/MyEvents";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My events — Wharton Student Olympics" };
+export const metadata = { title: "My events — Wharton Cluster Olympics" };
 
 export default async function MePage() {
   const user = await getOptionalUser();

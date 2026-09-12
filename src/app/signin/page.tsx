@@ -7,7 +7,7 @@ import { googleConfigured } from "@/lib/oauth";
 import { SignInFlow } from "@/components/SignInFlow";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Sign in — Wharton Student Olympics" };
+export const metadata = { title: "Sign in — Wharton Cluster Olympics" };
 
 export default async function SignInPage({ searchParams }: { searchParams: { next?: string } }) {
   const user = await getOptionalUser();

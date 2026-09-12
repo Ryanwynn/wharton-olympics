@@ -6,7 +6,7 @@ import { getCohorts } from "@/lib/queries";
 import { AdminConsole } from "@/components/AdminConsole";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Admin — Wharton Student Olympics" };
+export const metadata = { title: "Admin — Wharton Cluster Olympics" };
 
 export default async function AdminPage() {
   const user = await getOptionalUser();

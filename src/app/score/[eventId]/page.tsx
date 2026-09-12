@@ -7,7 +7,7 @@ import { getBracket } from "@/lib/bracket";
 import { ScoreEntry } from "@/components/ScoreEntry";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Score entry — Wharton Student Olympics" };
+export const metadata = { title: "Score entry — Wharton Cluster Olympics" };
 
 export default async function ScorePage({ params }: { params: { eventId: string } }) {
   const user = await getOptionalUser();

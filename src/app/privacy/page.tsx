@@ -1,4 +1,4 @@
-export const metadata = { title: "Privacy note — Wharton Student Olympics" };
+export const metadata = { title: "Privacy note — Wharton Cluster Olympics" };
 
 export default function PrivacyPage() {
   return (
@@ -30,8 +30,7 @@ export default function PrivacyPage() {
       </p>
 
       <p className="mt-6 text-sm text-ink-muted">
-        A student organization at the University of Pennsylvania. Not affiliated with or endorsed by
-        the Wharton School or the University of Pennsylvania.
+        Developed in coordination with the Office of Student Life.
       </p>
     </article>
   );

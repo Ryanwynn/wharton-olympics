@@ -3,7 +3,7 @@ import { getBracket } from "@/lib/bracket";
 import { LiveBracket } from "@/components/LiveBracket";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Bracket — Wharton Student Olympics" };
+export const metadata = { title: "Bracket — Wharton Cluster Olympics" };
 
 export default async function BracketPage({ params }: { params: { eventId: string } }) {
   const bracket = await getBracket(params.eventId, true);

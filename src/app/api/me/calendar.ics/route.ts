@@ -18,10 +18,10 @@ export const GET = route(async () => {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Wharton Student Olympics//EN",
+    "PRODID:-//Wharton Cluster Olympics//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:Wharton Student Olympics",
+    "X-WR-CALNAME:Wharton Cluster Olympics",
   ];
   for (const it of agenda) {
     if (!it.startsAt) continue;

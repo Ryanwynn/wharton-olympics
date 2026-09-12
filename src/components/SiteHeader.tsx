@@ -25,8 +25,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link href="/" className="group flex flex-col leading-none text-white no-underline">
           {/* Typographic wordmark only — no Wharton logo / Penn shield (§12.3). */}
-          <span className="font-serif text-lg font-bold text-white sm:text-xl">Wharton Student Olympics</span>
-          <span className="text-[11px] uppercase tracking-wide text-white/70">2026 · four clusters, one day</span>
+          <span className="font-serif text-lg font-bold text-white sm:text-xl">Wharton Cluster Olympics</span>
         </Link>
 
         <nav aria-label="Primary" className="flex items-center gap-1 text-sm">

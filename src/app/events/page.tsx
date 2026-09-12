@@ -3,7 +3,7 @@ import { getBrowseEvents } from "@/lib/queries";
 import { EventsBrowser } from "@/components/EventsBrowser";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Events — Wharton Student Olympics" };
+export const metadata = { title: "Events — Wharton Cluster Olympics" };
 
 export default async function EventsPage() {
   const user = await getOptionalUser();

@@ -21,14 +21,12 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
   ];
 
   return (
-    <header className="border-b border-border bg-surface">
+    <header className="border-b-2 border-penn-red bg-penn-blue text-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="group flex flex-col leading-none no-underline">
+        <Link href="/" className="group flex flex-col leading-none text-white no-underline">
           {/* Typographic wordmark only — no Wharton logo / Penn shield (§12.3). */}
-          <span className="font-serif text-lg font-bold text-penn-blue sm:text-xl">
-            Wharton Student Olympics
-          </span>
-          <span className="text-[11px] uppercase tracking-wide text-ink-muted">2026 · four clusters, one day</span>
+          <span className="font-serif text-lg font-bold text-white sm:text-xl">Wharton Student Olympics</span>
+          <span className="text-[11px] uppercase tracking-wide text-white/70">2026 · four clusters, one day</span>
         </Link>
 
         <nav aria-label="Primary" className="flex items-center gap-1 text-sm">
@@ -40,9 +38,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`rounded-md px-2.5 py-2 no-underline transition-colors sm:px-3 ${
-                  active
-                    ? "bg-penn-blue-tint font-semibold text-penn-blue"
-                    : "text-ink hover:bg-surface-alt"
+                  active ? "bg-white/20 font-semibold text-white" : "text-white/85 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 {item.label}
@@ -50,12 +46,12 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
             );
           })}
           {user ? (
-            <span className="ml-1 hidden items-center gap-2 border-l border-border pl-3 sm:flex">
-              <span className="max-w-[9rem] truncate text-ink-muted" title={user.displayName}>
+            <span className="ml-1 hidden items-center gap-2 border-l border-white/25 pl-3 sm:flex">
+              <span className="max-w-[9rem] truncate text-white/80" title={user.displayName}>
                 {user.displayName}
               </span>
               <form action="/api/auth/signout" method="post">
-                <button className="rounded-md px-2 py-1 text-penn-blue hover:underline" type="submit">
+                <button className="rounded-md px-2 py-1 text-white/85 hover:text-white hover:underline" type="submit">
                   Sign out
                 </button>
               </form>
@@ -63,7 +59,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
           ) : (
             <Link
               href="/signin"
-              className="ml-1 rounded-md bg-penn-blue px-3 py-2 font-semibold text-white no-underline hover:bg-penn-blue-hover"
+              className="ml-1 rounded-md bg-penn-red px-4 py-2 font-bold text-white no-underline shadow-sm ring-1 ring-white/25 transition-colors hover:bg-penn-red-hover sm:px-5"
             >
               Sign in
             </Link>

@@ -29,7 +29,7 @@ function fmtPoints(n: number): string {
 }
 
 export function Scoreboard({ initial }: { initial: LiveData }) {
-  const { data, isPolling, lastFetchAt, failed } = useLivePoll<LiveData>(fetchLive, initial, {
+  const { data, failed } = useLivePoll<LiveData>(fetchLive, initial, {
     intervalMs: 15_000,
     jitterMs: 3_000,
   });
@@ -82,7 +82,7 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
             </h1>
             <p className="text-sm text-ink-muted">Overall points across all completed events.</p>
           </div>
-          <Freshness lastUpdated={lastUpdated} lastFetchAt={lastFetchAt} isPolling={isPolling} failed={failed} />
+          <Freshness lastUpdated={lastUpdated} failed={failed} />
         </div>
         <StandingsTable standings={standings} movement={movement} pulse={pulse} />
       </section>
@@ -109,7 +109,7 @@ function StandingsTable({
       <table className="w-full border-collapse text-left">
         <caption className="sr-only">Overall cluster standings, ranked by total points.</caption>
         <thead>
-          <tr className="border-b border-border bg-surface-alt text-xs uppercase tracking-wide text-ink-muted">
+          <tr className="border-b border-penn-blue-hover bg-penn-blue text-xs uppercase tracking-wide text-white">
             <th scope="col" className="w-14 px-3 py-2 text-center font-semibold">
               Rank
             </th>
@@ -219,12 +219,15 @@ function HappeningNow({ events }: { events: ScheduleEvent[] }) {
           <Link
             key={e.id}
             href={`/events#${e.slug}`}
-            className="min-w-[220px] shrink-0 rounded-lg border border-border bg-surface p-3 no-underline shadow-sm"
+            className="min-w-[220px] shrink-0 rounded-lg bg-penn-blue p-3 text-white no-underline shadow-sm ring-1 ring-white/10 hover:bg-penn-blue-hover"
           >
-            <div className="font-serif text-base font-semibold text-penn-blue">{e.name}</div>
-            <div className="mt-1 text-sm text-ink-muted">{e.location ?? "Location TBD"}</div>
-            {e.liveScore && <div className="tabular mt-1.5 text-base font-bold text-ink">{e.liveScore}</div>}
-            <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-penn-red">In progress</div>
+            <div className="font-serif text-base font-semibold text-white">{e.name}</div>
+            <div className="mt-1 text-sm text-white/75">{e.location ?? "Location TBD"}</div>
+            {e.liveScore && <div className="tabular mt-1.5 text-base font-bold text-white">{e.liveScore}</div>}
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-penn-red px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              In progress
+            </div>
           </Link>
         ))}
       </div>
@@ -440,39 +443,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Freshness pill (§6.1: last-updated always visible) ─────────────────────────
-function Freshness({
-  lastUpdated,
-  lastFetchAt,
-  isPolling,
-  failed,
-}: {
-  lastUpdated: string;
-  lastFetchAt: number;
-  isPolling: boolean;
-  failed: boolean;
-}) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const secondsAgo = Math.max(0, Math.round((Date.now() - lastFetchAt) / 1000));
-
+function Freshness({ lastUpdated, failed }: { lastUpdated: string; failed: boolean }) {
+  // The board still auto-refreshes in the background; we just show a quiet stamp
+  // instead of a ticking "live" counter.
   return (
     <div className="shrink-0 text-right text-xs text-ink-muted">
-      <div className="flex items-center justify-end gap-1.5">
-        {failed ? (
-          <span className="text-penn-red">Reconnecting…</span>
-        ) : (
-          <>
-            <span className={`h-2 w-2 rounded-full ${isPolling ? "bg-cohort-dragon" : "bg-ink-muted"}`} aria-hidden />
-            <span suppressHydrationWarning>{isPolling ? `Live · updated ${secondsAgo}s ago` : "Paused"}</span>
-          </>
-        )}
-      </div>
-      <div suppressHydrationWarning className="mt-0.5">
-        Results as of {fmtTime(lastUpdated)}
-      </div>
+      <div suppressHydrationWarning>Results as of {fmtTime(lastUpdated)}</div>
+      {failed && <div className="mt-0.5 text-penn-red">Reconnecting…</div>}
     </div>
   );
 }

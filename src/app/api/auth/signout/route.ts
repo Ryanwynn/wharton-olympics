@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { query } from "@/lib/db";
 import { route } from "@/lib/api";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { authCookieDomain } from "@/lib/oauth";
 import { hashToken } from "@/lib/crypto";
 
 export const runtime = "nodejs";
@@ -14,6 +15,9 @@ export const POST = route(async (req) => {
   if (token) await query(`DELETE FROM sessions WHERE token_hash = $1`, [hashToken(token)]);
 
   const res = NextResponse.redirect(new URL("/", req.url), 303);
+  // Clear both the host-only cookie (older sessions) and the domain-scoped one.
   res.cookies.set(SESSION_COOKIE, "", { path: "/", expires: new Date(0) });
+  const domain = authCookieDomain();
+  if (domain) res.cookies.set(SESSION_COOKIE, "", { path: "/", domain, expires: new Date(0) });
   return res;
 });

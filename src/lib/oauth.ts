@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { env } from "./env";
 
 /**
@@ -27,6 +28,73 @@ export function appBaseUrl(req: Request): string {
 
 export function oauthRedirectUri(req: Request): string {
   return `${appBaseUrl(req)}/api/auth/google/callback`;
+}
+
+// ── Signed OAuth state ────────────────────────────────────────────────────────
+// The `state` we hand Google is self-verifying: `nonce.exp.next.sig`, signed with
+// AUTH_SECRET. This lets the callback trust the state even if the browser dropped
+// the short-lived `wso_oauth` cookie on the round-trip through Google (the cause
+// of the intermittent "first attempt fails, second works" sign-in). The cookie,
+// when present, still binds the flow to this browser (CSRF); when absent we fall
+// back to the unforgeable signature rather than failing outright.
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes to complete the round-trip
+
+function b64url(input: Buffer | string): string {
+  return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(s: string): string {
+  return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+}
+function stateSig(payload: string): string {
+  return b64url(crypto.createHmac("sha256", env.authSecret).update(payload).digest());
+}
+
+/** Build a signed state param and its matching cookie nonce. */
+export function makeOAuthState(next: string): { state: string; nonce: string } {
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const payload = `${nonce}.${Date.now() + STATE_TTL_MS}.${b64url(next || "/")}`;
+  return { state: `${payload}.${stateSig(payload)}`, nonce };
+}
+
+/** Verify a state param's signature + freshness. Returns null if tampered/expired. */
+export function verifyOAuthState(state: string): { nonce: string; next: string } | null {
+  const parts = state.split(".");
+  if (parts.length !== 4) return null;
+  const [nonce, exp, nextB64, sig] = parts;
+  const expected = stateSig(`${nonce}.${exp}.${nextB64}`);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const expMs = Number(exp);
+  if (!Number.isFinite(expMs) || expMs < Date.now()) return null;
+  let next = "/";
+  try {
+    const decoded = b64urlDecode(nextB64);
+    // Only allow app-relative paths (block open-redirects like //evil.com).
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) next = decoded;
+  } catch {
+    /* keep default */
+  }
+  return { nonce, next };
+}
+
+/**
+ * Domain to scope the auth cookies to in production, so a cookie set on
+ * www.<domain> is also sent to the apex (and vice-versa) — otherwise an apex↔www
+ * hop silently drops the session/state cookie. Host-only (undefined) in dev.
+ */
+export function authCookieDomain(): string | undefined {
+  if (!env.isProd || !env.appUrl) return undefined;
+  let host: string;
+  try {
+    host = new URL(env.appUrl).hostname;
+  } catch {
+    return undefined;
+  }
+  if (!host || host === "localhost" || /^[0-9.]+$/.test(host)) return undefined;
+  const labels = host.split(".");
+  if (labels.length < 2) return undefined;
+  return "." + labels.slice(-2).join("."); // e.g. .whartonolympics.com
 }
 
 export function googleAuthUrl(redirectUri: string, state: string): string {

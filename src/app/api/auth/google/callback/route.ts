@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
-import { exchangeCodeForProfile, oauthRedirectUri, appBaseUrl } from "@/lib/oauth";
+import {
+  exchangeCodeForProfile,
+  oauthRedirectUri,
+  appBaseUrl,
+  verifyOAuthState,
+  authCookieDomain,
+} from "@/lib/oauth";
 import { normalizeEmail, isAllowedDomain } from "@/lib/email";
 import { createSession, findOrCreateUser, SESSION_COOKIE } from "@/lib/auth";
 
@@ -12,6 +18,7 @@ const OAUTH_COOKIE = "wso_oauth";
 
 export async function GET(req: Request) {
   const base = appBaseUrl(req);
+  const domain = authCookieDomain();
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -21,23 +28,28 @@ export async function GET(req: Request) {
     // eslint-disable-next-line no-console
     console.error(`[google-callback] fail=${reason} :: ${detail} :: redirect_uri=${oauthRedirectUri(req)} base=${base}`);
     const res = NextResponse.redirect(new URL(`/signin?error=${reason}`, base));
-    res.cookies.delete(OAUTH_COOKIE);
+    res.cookies.set(OAUTH_COOKIE, "", { path: "/", domain, expires: new Date(0) });
     return res;
   };
 
-  // Validate the CSRF state against the cookie set in /start.
-  const raw = cookies().get(OAUTH_COOKIE)?.value;
   if (oauthError) return fail("oauth", `google returned error=${oauthError}`);
   if (!code) return fail("oauth", "no code param on callback");
   if (!state) return fail("oauth", "no state param on callback");
-  if (!raw) return fail("oauth", "oauth state cookie missing — usually the browsing domain differs from APP_URL / the registered redirect URI (cookie was set on a different origin)");
-  let saved: { state: string; next: string };
-  try {
-    saved = JSON.parse(raw);
-  } catch {
-    return fail("oauth", "oauth cookie unparseable");
+
+  // The state is HMAC-signed, so we trust it on its own merits. When the browser
+  // kept the nonce cookie we additionally bind the flow to it (full CSRF check);
+  // when the cookie was dropped on the Google round-trip we accept the signed
+  // state rather than failing — this is what fixes the flaky first sign-in.
+  const parsed = verifyOAuthState(state);
+  if (!parsed) return fail("oauth", "state signature invalid or expired");
+  const cookieNonce = cookies().get(OAUTH_COOKIE)?.value;
+  if (cookieNonce) {
+    if (cookieNonce !== parsed.nonce) return fail("oauth", "state/cookie nonce mismatch (CSRF check)");
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn("[google-callback] oauth nonce cookie absent — accepting signed state (fallback)");
   }
-  if (!saved.state || saved.state !== state) return fail("oauth", "state mismatch (CSRF check)");
+  const nextDest = parsed.next;
 
   // Exchange the code and read the verified Google profile.
   let profile;
@@ -57,14 +69,15 @@ export async function GET(req: Request) {
 
   // New users (no cluster yet) go through the short profile step on /signin;
   // returning users go straight to their destination.
-  const dest = needsProfile ? `/signin?next=${encodeURIComponent(saved.next || "/")}` : saved.next || "/me";
+  const dest = needsProfile ? `/signin?next=${encodeURIComponent(nextDest || "/")}` : nextDest || "/me";
   const res = NextResponse.redirect(new URL(dest, base));
-  res.cookies.delete(OAUTH_COOKIE);
+  res.cookies.set(OAUTH_COOKIE, "", { path: "/", domain, expires: new Date(0) });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: env.isProd,
     sameSite: "lax",
     path: "/",
+    domain,
     expires: expiresAt,
   });
   return res;

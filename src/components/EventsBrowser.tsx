@@ -323,50 +323,66 @@ function TeamArea({
   }
 
   const allTeams = e.teams ?? [];
-  const myTeam = allTeams.find((t) => t.cohortId === cohortId) ?? null;
+  const myClusterTeams = allTeams.filter((t) => t.cohortId === cohortId);
   const others = allTeams.filter((t) => t.cohortId !== cohortId);
-  const myTeamFull = myTeam != null && e.maxTeamSize != null && myTeam.memberCount >= e.maxTeamSize;
+  const limit = e.maxTeamsPerCohort ?? 1;
+  const canCreate = myClusterTeams.length < limit;
+  const isFull = (memberCount: number) => e.maxTeamSize != null && memberCount >= e.maxTeamSize;
+  const sizeSuffix = (memberCount: number) => `${memberCount}${e.maxTeamSize ? `/${e.maxTeamSize}` : ""}`;
 
   return (
     <div className="space-y-2">
       <p className="text-xs text-ink-muted">
-        Teams are per cluster — you play on the <span className="font-medium text-penn-blue">{cohortName}</span> team.
+        Teams are per cluster — join a <span className="font-medium text-penn-blue">{cohortName}</span> team
+        {limit > 1 ? ` (your cluster may enter up to ${limit})` : ""}.
       </p>
 
-      {myTeam ? (
-        myTeamFull ? (
-          <DisabledBtn label={`${cohortName} team is full`} />
-        ) : (
-          <button
-            onClick={() => call(`/api/teams/${myTeam.id}/join`, { method: "POST" }).catch(() => {})}
-            disabled={busy}
-            className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
-          >
-            {busy ? "Joining…" : `Join the ${cohortName} team (${myTeam.memberCount}/${e.maxTeamSize})`}
+      {myClusterTeams.length > 0 && (
+        <div className="space-y-1.5">
+          {myClusterTeams.map((t) =>
+            isFull(t.memberCount) ? (
+              <DisabledBtn key={t.id} label={`${t.name} is full (${sizeSuffix(t.memberCount)})`} />
+            ) : (
+              <button
+                key={t.id}
+                onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).catch(() => {})}
+                disabled={busy}
+                className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
+              >
+                {busy ? "Joining…" : `Join ${t.name} (${sizeSuffix(t.memberCount)})`}
+              </button>
+            )
+          )}
+        </div>
+      )}
+
+      {canCreate &&
+        (!creating ? (
+          <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
+            {myClusterTeams.length === 0 ? `Create the ${cohortName} team` : `Create another ${cohortName} team`}
           </button>
-        )
-      ) : !creating ? (
-        <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
-          Create the {cohortName} team
-        </button>
-      ) : (
-        <form
-          onSubmit={async (ev) => {
-            ev.preventDefault();
-            await call(`/api/events/${e.id}/teams`, { method: "POST", body: JSON.stringify({ name }) }).catch(() => {});
-          }}
-          className="space-y-2"
-        >
-          <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
-          <div className="flex gap-2">
-            <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              {busy ? "Creating…" : "Create team"}
-            </button>
-            <button type="button" onClick={() => setCreating(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
-              Cancel
-            </button>
-          </div>
-        </form>
+        ) : (
+          <form
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              await call(`/api/events/${e.id}/teams`, { method: "POST", body: JSON.stringify({ name }) }).catch(() => {});
+            }}
+            className="space-y-2"
+          >
+            <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+            <div className="flex gap-2">
+              <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {busy ? "Creating…" : "Create team"}
+              </button>
+              <button type="button" onClick={() => setCreating(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
+                Cancel
+              </button>
+            </div>
+          </form>
+        ))}
+
+      {!canCreate && limit > 1 && (
+        <p className="text-[11px] text-ink-muted">Your cluster has filled all {limit} team slots for this event.</p>
       )}
 
       {others.length > 0 && (

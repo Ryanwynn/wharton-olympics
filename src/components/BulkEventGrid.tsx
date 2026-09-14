@@ -22,6 +22,7 @@ interface Row {
   capacity: string;
   min_team_size: string;
   max_team_size: string;
+  max_teams_per_cohort: string;
   location: string;
   location_note: string;
   description: string;
@@ -51,6 +52,7 @@ function blankRow(): Row {
     capacity: "24",
     min_team_size: "3",
     max_team_size: "5",
+    max_teams_per_cohort: "1",
     location: "",
     location_note: "",
     description: "",
@@ -80,6 +82,7 @@ function fromEvent(e: AdminEvent): Row {
     capacity: e.capacity == null ? "" : String(e.capacity),
     min_team_size: e.minTeamSize == null ? "3" : String(e.minTeamSize),
     max_team_size: e.maxTeamSize == null ? "5" : String(e.maxTeamSize),
+    max_teams_per_cohort: e.maxTeamsPerCohort == null ? "1" : String(e.maxTeamsPerCohort),
     location: e.location ?? "",
     location_note: e.locationNote ?? "",
     description: e.description ?? "",
@@ -116,6 +119,7 @@ function buildBody(r: Row) {
   if (r.entry_type === "team") {
     body.min_team_size = Number(r.min_team_size) || 0;
     body.max_team_size = Number(r.max_team_size) || 0;
+    body.max_teams_per_cohort = Math.max(1, Number(r.max_teams_per_cohort) || 1);
   }
   return body;
 }
@@ -184,7 +188,7 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
         <table className="min-w-[1500px] border-collapse text-left">
           <thead className="bg-surface-alt text-[11px] uppercase tracking-wide text-ink-muted">
             <tr>
-              {["Status", "Name", "Type", "Cap", "Min", "Max", "Location", "Loc. note", "Description", "Starts", "Ends", "Signup opens", "Signup closes", "1st", "2nd", "3rd", "Part.", "WL", ""].map(
+              {["Status", "Name", "Type", "Cap", "Min", "Max", "Teams/cl.", "Location", "Loc. note", "Description", "Starts", "Ends", "Signup opens", "Signup closes", "1st", "2nd", "3rd", "Part.", "WL", ""].map(
                 (h, i) => (
                   <th key={`${h}-${i}`} className="whitespace-nowrap px-2 py-2 font-semibold">
                     {h}
@@ -219,6 +223,7 @@ export function BulkEventGrid({ events, onSaved }: { events: AdminEvent[]; onSav
                 <td className="px-2 py-1.5"><input type="number" className={`${cell} w-16`} value={r.capacity} onChange={(e) => update(r.key, { capacity: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="number" disabled={r.entry_type !== "team"} className={`${cell} w-14 disabled:bg-surface-alt`} value={r.entry_type === "team" ? r.min_team_size : ""} onChange={(e) => update(r.key, { min_team_size: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input type="number" disabled={r.entry_type !== "team"} className={`${cell} w-14 disabled:bg-surface-alt`} value={r.entry_type === "team" ? r.max_team_size : ""} onChange={(e) => update(r.key, { max_team_size: e.target.value })} /></td>
+                <td className="px-2 py-1.5"><input type="number" min={1} disabled={r.entry_type !== "team"} className={`${cell} w-14 disabled:bg-surface-alt`} value={r.entry_type === "team" ? r.max_teams_per_cohort : ""} onChange={(e) => update(r.key, { max_teams_per_cohort: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input className={`${cell} w-36`} value={r.location} onChange={(e) => update(r.key, { location: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input className={`${cell} w-36`} value={r.location_note} placeholder="e.g. Meet at north gate" onChange={(e) => update(r.key, { location_note: e.target.value })} /></td>
                 <td className="px-2 py-1.5"><input className={`${cell} w-52`} value={r.description} onChange={(e) => update(r.key, { description: e.target.value })} /></td>

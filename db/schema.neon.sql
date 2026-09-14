@@ -72,6 +72,7 @@ CREATE TABLE events (
   entry_type       entry_type NOT NULL,
   min_team_size    int,
   max_team_size    int,
+  max_teams_per_cohort int NOT NULL DEFAULT 1, -- how many teams each cluster may enter (e.g. 3 for pickleball)
   capacity         int,
   waitlist_enabled boolean NOT NULL DEFAULT true,
   signup_opens_at  timestamptz,
@@ -87,6 +88,7 @@ CREATE TABLE events (
   sort_order       int NOT NULL DEFAULT 0,
   updated_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (season_id, slug),
+  CHECK (max_teams_per_cohort >= 1),
   CHECK (entry_type = 'individual' OR (min_team_size IS NOT NULL AND max_team_size >= min_team_size))
 );
 CREATE INDEX ON events (season_id, starts_at);
@@ -104,7 +106,9 @@ CREATE TABLE teams (
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (event_id, name)
 );
-CREATE UNIQUE INDEX one_team_per_cohort ON teams (event_id, cohort_id);
+-- Teams are cluster-bound; a cluster may enter up to events.max_teams_per_cohort
+-- teams (enforced in app code, which locks the event row). Index supports the count.
+CREATE INDEX teams_event_cohort ON teams (event_id, cohort_id);
 
 CREATE TABLE team_members (
   team_id       uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,

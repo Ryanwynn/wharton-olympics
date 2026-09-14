@@ -24,6 +24,7 @@ interface EventRow {
   signup_closes_at: string | null;
   min_team_size: number | null;
   max_team_size: number | null;
+  max_teams_per_cohort: number | null;
 }
 
 function assertSignupOpen(ev: EventRow) {
@@ -165,9 +166,20 @@ export async function createTeam(userId: string, eventId: string, name: string) 
     ).rows[0];
     if (already) throw new RegError(409, "You're already on a team for this event.");
 
-    // One team per cluster per event.
-    const clusterTeam = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND cohort_id = $2`, [eventId, cohortId])).rows[0];
-    if (clusterTeam) throw new RegError(409, "Your cluster already has a team for this event — join it instead.");
+    // Up to events.max_teams_per_cohort teams per cluster per event (default 1).
+    // We hold the event row lock (lockEvent above), so this count-then-insert is safe.
+    const limit = ev.max_teams_per_cohort ?? 1;
+    const clusterTeams = Number(
+      (await t.query<{ c: string }>(`SELECT count(*)::text c FROM teams WHERE event_id = $1 AND cohort_id = $2`, [eventId, cohortId])).rows[0].c
+    );
+    if (clusterTeams >= limit) {
+      throw new RegError(
+        409,
+        limit === 1
+          ? "Your cluster already has a team for this event — join it instead."
+          : `Your cluster already has the maximum of ${limit} teams for this event — join one of them instead.`
+      );
+    }
 
     const dup = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND lower(name) = lower($2)`, [eventId, clean])).rows[0];
     if (dup) throw new RegError(409, "A team with that name already exists for this event.");

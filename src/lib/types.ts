@@ -75,6 +75,7 @@ export interface BrowseEvent {
   signupClosesAt: string | null;
   minTeamSize: number | null;
   maxTeamSize: number | null;
+  maxTeamsPerCohort: number; // how many teams each cluster may enter (default 1)
   spotsRemaining: number | null;
   liveScore: string | null;
   hasBracket: boolean;

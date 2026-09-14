@@ -114,11 +114,35 @@ delete process.env.DATABASE_URL;
     secondTeamSameClusterBlocked,
   });
 
+  // ── Configurable teams-per-cluster: an event allowing 3 teams per cluster ──
+  const mev = (
+    await query<any>(
+      `INSERT INTO events (season_id, slug, name, entry_type, min_team_size, max_team_size, max_teams_per_cohort,
+        capacity, waitlist_enabled, signup_opens_at, signup_closes_at, starts_at, status)
+       VALUES ($1,'pickleball','Pickleball','team',2,2,3,99,true,
+         now() - interval '1 hour', now() + interval '2 hours', now() + interval '3 hours','published') RETURNING id`,
+      [season.id]
+    )
+  )[0];
+  await createTeam(lions[30], mev.id, "Lions 1");
+  await createTeam(lions[31], mev.id, "Lions 2");
+  await createTeam(lions[32], mev.id, "Lions 3");
+  const lionTeamsAtLimit = Number((await query<any>(`SELECT count(*) c FROM teams WHERE event_id=$1`, [mev.id]))[0].c);
+  let fourthTeamBlocked = false;
+  try {
+    await createTeam(lions[33], mev.id, "Lions 4");
+  } catch {
+    fourthTeamBlocked = true;
+  }
+  console.log("\n── Teams per cluster = 3 ──");
+  console.log({ lionTeamsAtLimit, fourthTeamBlocked });
+
   const pass =
     registered === 50 && waitlisted === 250 && dupes === 0 && maxPos === 250 &&
     JSON.stringify(dt1) === JSON.stringify(dt2) &&
     capCountAfterCreate === 0 && capCountAt2 === 0 && capCountAt3 === 1 && teamStatus === "registered" &&
-    diffClusterBlocked && secondTeamSameClusterBlocked;
+    diffClusterBlocked && secondTeamSameClusterBlocked &&
+    lionTeamsAtLimit === 3 && fourthTeamBlocked;
 
   console.log("\n" + (pass ? "✅ PASS — no oversell, waitlist correct, idempotent, cluster-bound teams correct" : "❌ FAIL"));
   // Hard-exit WITHOUT closing PGlite. Deleting the data dir and then calling close()

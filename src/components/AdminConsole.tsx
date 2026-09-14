@@ -18,6 +18,7 @@ export interface AdminEvent {
   waitlistEnabled: boolean;
   minTeamSize: number | null;
   maxTeamSize: number | null;
+  maxTeamsPerCohort: number | null;
   startsAt: string | null;
   endsAt: string | null;
   location: string | null;
@@ -216,7 +217,7 @@ function StatusTag({ status }: { status: string }) {
 
 function initialForm(event?: AdminEvent) {
   if (!event) {
-    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
+    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, max_teams_per_cohort: 1, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
   }
   const ps = event.pointsSchema ?? {};
   return {
@@ -227,6 +228,7 @@ function initialForm(event?: AdminEvent) {
     waitlist_enabled: event.waitlistEnabled,
     min_team_size: event.minTeamSize ?? 3,
     max_team_size: event.maxTeamSize ?? 5,
+    max_teams_per_cohort: event.maxTeamsPerCohort ?? 1,
     location: event.location ?? "",
     location_note: event.locationNote ?? "",
     starts_at: toDatetimeLocal(event.startsAt),
@@ -263,7 +265,11 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         signup_closes_at: f.signup_closes_at ? new Date(f.signup_closes_at).toISOString() : null,
         points_schema: { "1": Number(f.p1), "2": Number(f.p2), "3": Number(f.p3), participation: Number(f.pp) },
       };
-      if (f.entry_type === "team") { body.min_team_size = Number(f.min_team_size); body.max_team_size = Number(f.max_team_size); }
+      if (f.entry_type === "team") {
+        body.min_team_size = Number(f.min_team_size);
+        body.max_team_size = Number(f.max_team_size);
+        body.max_teams_per_cohort = Math.max(1, Number(f.max_teams_per_cohort) || 1);
+      }
       if (isEdit) {
         await api(`/api/admin/events/${event!.id}`, { method: "PATCH", body: JSON.stringify(body) });
       } else {
@@ -296,6 +302,10 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         <>
           <label className="text-xs font-medium text-ink-muted">Min team size<input type="number" className={input} value={f.min_team_size} onChange={(e) => set("min_team_size", e.target.value)} /></label>
           <label className="text-xs font-medium text-ink-muted">Max team size<input type="number" className={input} value={f.max_team_size} onChange={(e) => set("max_team_size", e.target.value)} /></label>
+          <label className="text-xs font-medium text-ink-muted sm:col-span-2">Teams per cluster
+            <input type="number" min={1} className={input} value={f.max_teams_per_cohort} onChange={(e) => set("max_teams_per_cohort", e.target.value)} />
+            <span className="mt-0.5 block font-normal text-ink-muted/80">How many teams each cluster may enter (e.g. 3 for pickleball). Default 1.</span>
+          </label>
         </>
       )}
       <label className="text-xs font-medium text-ink-muted">Location<input className={input} value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} /></label>

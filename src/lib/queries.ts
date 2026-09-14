@@ -308,6 +308,7 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
       signupClosesAt: e.signup_closes_at ? new Date(e.signup_closes_at).toISOString() : null,
       minTeamSize: e.min_team_size,
       maxTeamSize: e.max_team_size,
+      maxTeamsPerCohort: e.max_teams_per_cohort ?? 1,
       spotsRemaining,
       liveScore: e.live_score ?? null,
       hasBracket: Boolean(e.has_bracket),

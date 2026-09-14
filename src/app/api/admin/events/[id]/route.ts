@@ -15,6 +15,7 @@ const EDITABLE: Record<string, string> = {
   waitlist_enabled: "bool",
   min_team_size: "int",
   max_team_size: "int",
+  max_teams_per_cohort: "int",
   signup_opens_at: "ts",
   signup_closes_at: "ts",
   starts_at: "ts",

@@ -103,6 +103,7 @@ function EventCard({
   const [confirmState, setConfirmState] = useState<{ title: string; message: string; label: string; run: () => void } | null>(null);
   const st = actionState(e);
   const viewer = e.viewer;
+  const teamsPerCluster = e.maxTeamsPerCohort ?? 1;
 
   async function call(url: string, opts: RequestInit = {}) {
     setBusy(true);
@@ -151,9 +152,16 @@ function EventCard({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="font-serif text-lg font-semibold text-penn-blue">{e.name}</h2>
-          <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${e.entryType === "team" ? "bg-penn-blue-tint text-penn-blue" : "bg-surface-alt text-ink-muted"}`}>
-            {e.entryType}
-          </span>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${e.entryType === "team" ? "bg-penn-blue-tint text-penn-blue" : "bg-surface-alt text-ink-muted"}`}>
+              {e.entryType}
+            </span>
+            {e.entryType === "team" && teamsPerCluster > 1 && (
+              <span className="inline-block rounded bg-penn-red/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-penn-red">
+                {teamsPerCluster} teams / cluster
+              </span>
+            )}
+          </div>
         </div>
         <SpotsBadge event={e} />
       </div>
@@ -173,6 +181,12 @@ function EventCard({
           <div className="flex gap-2">
             <dt className="w-16 shrink-0 text-ink-muted">Team</dt>
             <dd className="text-ink">{e.minTeamSize}–{e.maxTeamSize} players</dd>
+          </div>
+        )}
+        {e.entryType === "team" && teamsPerCluster > 1 && (
+          <div className="flex gap-2">
+            <dt className="w-16 shrink-0 text-ink-muted">Per cluster</dt>
+            <dd className="font-medium text-ink">Up to {teamsPerCluster} teams</dd>
           </div>
         )}
       </dl>

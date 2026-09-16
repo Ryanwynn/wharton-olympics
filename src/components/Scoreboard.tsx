@@ -158,12 +158,8 @@ function StandingsTable({
                 </td>
                 <th scope="row" className="px-2 py-4 font-normal">
                   <div className="flex items-center gap-3">
-                    <span
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-                      style={{ backgroundColor: `${row.colorHex}1a` }}
-                    >
-                      <MascotIcon icon={row.iconKey} size={30} color={row.colorHex} title={`${row.name} cluster`} />
-                    </span>
+                    <MascotIcon icon={row.iconKey} size={44} color={row.colorHex} title={`${row.name} cluster`} />
+
                     <span className="min-w-0">
                       <span className="block font-serif text-lg font-semibold text-penn-blue">{row.name}</span>
                       <span className="block text-xs text-ink-muted">

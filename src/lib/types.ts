@@ -14,6 +14,16 @@ export interface StandingRow {
   rank: number;
 }
 
+export interface FoodTruck {
+  id: string;
+  name: string;
+  location: string | null;
+  menuText: string | null; // newline-separated menu items
+  menuUrl: string | null;
+  active: boolean;
+  sortOrder: number;
+}
+
 export interface ScheduleEvent {
   id: string;
   slug: string;

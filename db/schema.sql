@@ -183,6 +183,22 @@ CREATE TABLE IF NOT EXISTS bracket_matches (
 );
 CREATE INDEX IF NOT EXISTS bracket_event ON bracket_matches (event_id, round, slot);
 
+-- Food trucks on the event day. A menu is optional and can be given as bulleted
+-- text (one item per line in menu_text) and/or an external link (menu_url).
+CREATE TABLE IF NOT EXISTS food_trucks (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  season_id   uuid NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  location    text,
+  menu_text   text,
+  menu_url    text,
+  active      boolean NOT NULL DEFAULT true,
+  sort_order  int NOT NULL DEFAULT 0,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS food_trucks_season ON food_trucks (season_id, sort_order);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id            bigserial PRIMARY KEY,
   actor_id      uuid REFERENCES users(id),

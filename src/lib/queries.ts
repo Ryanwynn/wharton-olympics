@@ -10,9 +10,10 @@ import type {
   BrowseEvent,
   ViewerTeam,
   AgendaItem,
+  FoodTruck,
 } from "./types";
 
-export type { StandingRow, ScheduleEvent, EventResultRow, EventDetail } from "./types";
+export type { StandingRow, ScheduleEvent, EventResultRow, EventDetail, FoodTruck } from "./types";
 
 // ── Standings (§4, §7) ─────────────────────────────────────────────────────────
 // SUM(points) GROUP BY cohort over scores whose event is `complete`. Plain indexed
@@ -375,6 +376,30 @@ export async function getMyAgenda(userId: string): Promise<AgendaItem[]> {
     const tb = b.startsAt ? Date.parse(b.startsAt) : Infinity;
     return ta - tb;
   });
+}
+
+// ── Food trucks (public) ───────────────────────────────────────────────────────
+function mapFoodTruck(r: any): FoodTruck {
+  return {
+    id: r.id,
+    name: r.name,
+    location: r.location ?? null,
+    menuText: r.menu_text ?? null,
+    menuUrl: r.menu_url ?? null,
+    active: r.active,
+    sortOrder: r.sort_order ?? 0,
+  };
+}
+
+/** Active food trucks for the current season, in display order. */
+export async function getFoodTrucks(): Promise<FoodTruck[]> {
+  const rows = await query<any>(
+    `SELECT id, name, location, menu_text, menu_url, active, sort_order
+       FROM food_trucks
+      WHERE season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1) AND active = true
+      ORDER BY sort_order ASC, name ASC`
+  );
+  return rows.map(mapFoodTruck);
 }
 
 /** Freshness stamp for the public surface (§6.1). */

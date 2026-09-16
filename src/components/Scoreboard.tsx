@@ -5,23 +5,25 @@ import { MascotIcon } from "./MascotIcon";
 import { useLivePoll } from "./useLivePoll";
 import { fmtTime } from "@/lib/time";
 import { statusLabel } from "@/lib/format";
-import type { StandingRow, ScheduleEvent, EventResultRow } from "@/lib/types";
+import type { StandingRow, ScheduleEvent, EventResultRow, FoodTruck } from "@/lib/types";
 
 interface LiveData {
   standings: StandingRow[];
   schedule: ScheduleEvent[];
   lastUpdated: string;
+  foodTrucks: FoodTruck[];
 }
 
 const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric" });
 
 async function fetchLive(signal: AbortSignal): Promise<LiveData> {
-  const [s, sc] = await Promise.all([
+  const [s, sc, ft] = await Promise.all([
     fetch("/api/standings", { signal }).then((r) => r.json()),
     fetch("/api/schedule", { signal }).then((r) => r.json()),
+    fetch("/api/foodtrucks", { signal }).then((r) => r.json()),
   ]);
   const lastUpdated = [s.lastUpdated, sc.lastUpdated].sort().at(-1) as string;
-  return { standings: s.standings, schedule: sc.events, lastUpdated };
+  return { standings: s.standings, schedule: sc.events, lastUpdated, foodTrucks: ft.trucks ?? [] };
 }
 
 function fmtPoints(n: number): string {
@@ -33,7 +35,7 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
     intervalMs: 15_000,
     jitterMs: 3_000,
   });
-  const { standings, schedule, lastUpdated } = data;
+  const { standings, schedule, lastUpdated, foodTrucks } = data;
 
   // ── movement + pulse since last update ──────────────────────────────────────
   const prevPoints = useRef<Map<string, number>>(new Map(initial.standings.map((r) => [r.cohortId, r.points])));
@@ -88,6 +90,8 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
       </section>
 
       {liveEvents.length > 0 && <HappeningNow events={liveEvents} />}
+
+      {foodTrucks.length > 0 && <FoodTrucksSection trucks={foodTrucks} />}
 
       <ScheduleSection events={schedule} />
     </div>
@@ -241,6 +245,57 @@ function LiveDot() {
       <span className="absolute inline-flex h-full w-full rounded-full bg-penn-red opacity-75 animate-live-ping" />
       <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-penn-red" />
     </span>
+  );
+}
+
+// ── Food trucks ────────────────────────────────────────────────────────────────
+function menuItems(text: string | null): string[] {
+  if (!text) return [];
+  return text
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-•*]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
+  return (
+    <section aria-labelledby="trucks-heading">
+      <h2 id="trucks-heading" className="mb-2 flex items-center gap-2 text-lg font-semibold">
+        <span aria-hidden>🚚</span>
+        Food trucks
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {trucks.map((t) => {
+          const items = menuItems(t.menuText);
+          return (
+            <div key={t.id} className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="font-serif text-base font-semibold text-penn-blue">{t.name}</h3>
+                {t.location && <span className="shrink-0 text-xs text-ink-muted">{t.location}</span>}
+              </div>
+              {items.length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-ink">
+                  {items.map((it, i) => (
+                    <li key={i}>{it}</li>
+                  ))}
+                </ul>
+              )}
+              {t.menuUrl && (
+                <a
+                  href={t.menuUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block text-sm font-medium text-penn-blue hover:underline"
+                >
+                  View menu ↗
+                </a>
+              )}
+              {items.length === 0 && !t.menuUrl && <p className="mt-2 text-sm text-ink-muted">Menu coming soon.</p>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

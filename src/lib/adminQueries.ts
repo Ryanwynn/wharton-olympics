@@ -1,7 +1,26 @@
 import { query, queryOne } from "./db";
 import { publicName } from "./format";
 import { rangesOverlap } from "./time";
-import type { IconKey } from "./types";
+import type { IconKey, FoodTruck } from "./types";
+
+// ── Admin: food trucks (includes inactive) ──────────────────────────────────────
+export async function listAdminFoodTrucks(): Promise<FoodTruck[]> {
+  const rows = await query<any>(
+    `SELECT id, name, location, menu_text, menu_url, active, sort_order
+       FROM food_trucks
+      WHERE season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)
+      ORDER BY sort_order ASC, name ASC`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    location: r.location ?? null,
+    menuText: r.menu_text ?? null,
+    menuUrl: r.menu_url ?? null,
+    active: r.active,
+    sortOrder: r.sort_order ?? 0,
+  }));
+}
 
 // ── Scorekeeper entry data (§6.5) ───────────────────────────────────────────────
 export interface ScoreEntrant {

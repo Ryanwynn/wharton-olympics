@@ -6,6 +6,7 @@ import { fmtDayTime, fmtTime } from "@/lib/time";
 import { entryTypeLabel, eventStatusLabel, toDatetimeLocal } from "@/lib/format";
 import { BulkEventGrid } from "./BulkEventGrid";
 import type { CohortOption } from "@/lib/queries";
+import type { FoodTruck } from "@/lib/types";
 
 export interface AdminEvent {
   id: string;
@@ -45,16 +46,25 @@ export async function api(url: string, opts: RequestInit = {}) {
   return data;
 }
 
+const TAB_LABELS: Record<string, string> = {
+  events: "Events",
+  people: "People",
+  foodtrucks: "Food trucks",
+  audit: "Audit",
+};
+
 export function AdminConsole({
   initialEvents,
   cohorts,
   initialAudit,
+  initialFoodTrucks,
 }: {
   initialEvents: AdminEvent[];
   cohorts: CohortOption[];
   initialAudit: AuditEntry[];
+  initialFoodTrucks: FoodTruck[];
 }) {
-  const [tab, setTab] = useState<"events" | "people" | "audit">("events");
+  const [tab, setTab] = useState<"events" | "people" | "foodtrucks" | "audit">("events");
   return (
     <div className="space-y-4">
       <div>
@@ -62,22 +72,23 @@ export function AdminConsole({
         <p className="text-sm text-ink-muted">Create events, manage rosters, score, and grant roles.</p>
       </div>
       <div role="tablist" className="flex gap-1 border-b border-border">
-        {(["events", "people", "audit"] as const).map((t) => (
+        {(["events", "people", "foodtrucks", "audit"] as const).map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold capitalize ${
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${
               tab === t ? "border-penn-blue text-penn-blue" : "border-transparent text-ink-muted hover:text-ink"
             }`}
           >
-            {t}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
       {tab === "events" && <EventsTab events={initialEvents} cohorts={cohorts} />}
       {tab === "people" && <PeopleTab events={initialEvents} />}
+      {tab === "foodtrucks" && <FoodTrucksTab initial={initialFoodTrucks} />}
       {tab === "audit" && <AuditTab initial={initialAudit} />}
     </div>
   );
@@ -386,6 +397,142 @@ function RosterPanel({ event }: { event: AdminEvent }) {
         </ul>
       )}
     </div>
+  );
+}
+
+// ── Food trucks tab ─────────────────────────────────────────────────────────────
+function FoodTrucksTab({ initial }: { initial: FoodTruck[] }) {
+  const router = useRouter();
+  const [trucks, setTrucks] = useState<FoodTruck[]>(initial);
+  const [editing, setEditing] = useState<FoodTruck | "new" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const d = await api("/api/admin/foodtrucks");
+      setTrucks(d.trucks);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [router]);
+
+  async function remove(t: FoodTruck) {
+    if (!confirm(`Remove “${t.name}”?`)) return;
+    try {
+      await api(`/api/admin/foodtrucks/${t.id}`, { method: "DELETE" });
+      await reload();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {error && <p className="rounded bg-penn-red/5 px-2 py-1 text-sm text-penn-red">{error}</p>}
+      {editing === null && (
+        <button onClick={() => setEditing("new")} className="rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white hover:bg-penn-blue-hover">
+          + Add food truck
+        </button>
+      )}
+
+      {editing !== null && (
+        <FoodTruckForm
+          truck={editing === "new" ? undefined : editing}
+          onDone={async () => {
+            setEditing(null);
+            await reload();
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {trucks.length === 0 ? (
+        <p className="text-sm text-ink-muted">No food trucks yet. Add one and it appears on the home page.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          {trucks.map((t) => (
+            <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-ink">{t.name}</span>
+                  {!t.active && <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted">hidden</span>}
+                  {t.location && <span className="text-xs text-ink-muted">· {t.location}</span>}
+                </div>
+                <div className="mt-0.5 text-xs text-ink-muted">
+                  {t.menuText ? `${t.menuText.split("\n").filter((l) => l.trim()).length} menu item(s)` : t.menuUrl ? "menu link" : "no menu"}
+                  {t.menuUrl && " · linked"}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-1.5">
+                <button onClick={() => setEditing(t)} className="rounded border border-border px-2 py-0.5 text-xs text-penn-blue hover:bg-surface-alt">Edit</button>
+                <button onClick={() => remove(t)} className="rounded border border-border px-2 py-0.5 text-xs text-penn-red hover:bg-penn-red/5">Delete</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FoodTruckForm({ truck, onDone, onCancel }: { truck?: FoodTruck; onDone: () => void; onCancel: () => void }) {
+  const isEdit = Boolean(truck);
+  const [name, setName] = useState(truck?.name ?? "");
+  const [location, setLocation] = useState(truck?.location ?? "");
+  const [menuText, setMenuText] = useState(truck?.menuText ?? "");
+  const [menuUrl, setMenuUrl] = useState(truck?.menuUrl ?? "");
+  const [active, setActive] = useState(truck?.active ?? true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const body = JSON.stringify({ name, location, menu_text: menuText, menu_url: menuUrl, active });
+    try {
+      if (isEdit) await api(`/api/admin/foodtrucks/${truck!.id}`, { method: "PATCH", body });
+      else await api("/api/admin/foodtrucks", { method: "POST", body });
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const input = "mt-0.5 w-full rounded-md border border-border px-2.5 py-2 text-sm";
+  return (
+    <form onSubmit={submit} className="grid gap-3 rounded-xl border border-border bg-surface p-4">
+      {error && <p className="rounded bg-penn-red/5 px-2 py-1 text-sm text-penn-red">{error}</p>}
+      <p className="text-sm font-semibold text-ink">{isEdit ? `Editing “${truck!.name}”` : "New food truck"}</p>
+      <label className="text-xs font-medium text-ink-muted">Name<input required className={input} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="text-xs font-medium text-ink-muted">Location <span className="font-normal">(optional)</span><input className={input} placeholder="e.g. Near Franklin Field" value={location} onChange={(e) => setLocation(e.target.value)} /></label>
+      <label className="text-xs font-medium text-ink-muted">
+        Menu — one item per line
+        <textarea className={`${input} min-h-[96px]`} placeholder={"Cheesesteak — $10\nVeggie wrap — $8\nFries — $4"} value={menuText} onChange={(e) => setMenuText(e.target.value)} />
+      </label>
+      <label className="text-xs font-medium text-ink-muted">
+        …or a menu link <span className="font-normal">(optional)</span>
+        <input className={input} placeholder="https://…" value={menuUrl} onChange={(e) => setMenuUrl(e.target.value)} />
+        <span className="mt-0.5 block font-normal text-ink-muted/80">Provide bulleted text, a link, or both.</span>
+      </label>
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+        Show on the home page
+      </label>
+      <div className="flex gap-2">
+        <button disabled={busy} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          {busy ? "Saving…" : isEdit ? "Save changes" : "Add food truck"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-md px-3 py-2 text-sm text-ink-muted">Cancel</button>
+      </div>
+    </form>
   );
 }
 

@@ -156,9 +156,9 @@ function EventCard({
             <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${e.entryType === "team" ? "bg-penn-blue-tint text-penn-blue" : "bg-surface-alt text-ink-muted"}`}>
               {e.entryType}
             </span>
-            {e.entryType === "team" && teamsPerCluster > 1 && (
+            {e.entryType === "team" && (
               <span className="inline-block rounded bg-penn-red/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-penn-red">
-                {teamsPerCluster} teams / cluster
+                {teamsPerCluster} {teamsPerCluster === 1 ? "team" : "teams"} / cluster
               </span>
             )}
           </div>
@@ -183,10 +183,10 @@ function EventCard({
             <dd className="text-ink">{e.minTeamSize}–{e.maxTeamSize} players</dd>
           </div>
         )}
-        {e.entryType === "team" && teamsPerCluster > 1 && (
+        {e.entryType === "team" && (
           <div className="flex gap-2">
             <dt className="w-16 shrink-0 text-ink-muted">Per cluster</dt>
-            <dd className="font-medium text-ink">Up to {teamsPerCluster} teams</dd>
+            <dd className="font-medium text-ink">{teamsPerCluster === 1 ? "1 team" : `Up to ${teamsPerCluster} teams`}</dd>
           </div>
         )}
       </dl>
@@ -416,7 +416,8 @@ function TeamArea({
 
   return (
     <div className="space-y-3">
-      <ClusterTeamSummary event={e} cohorts={cohorts} viewerCohortId={cohortId} />
+      {/* The per-cluster breakdown only earns its space when a cluster can enter more than one team. */}
+      {limit > 1 && <ClusterTeamSummary event={e} cohorts={cohorts} viewerCohortId={cohortId} />}
       {action}
     </div>
   );

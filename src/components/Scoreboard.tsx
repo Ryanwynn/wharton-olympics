@@ -220,23 +220,40 @@ function HappeningNow({ events }: { events: ScheduleEvent[] }) {
       </h2>
       <div className="flex gap-3 overflow-x-auto pb-1">
         {events.map((e) => (
-          <Link
-            key={e.id}
-            href={`/events#${e.slug}`}
-            className="min-w-[220px] shrink-0 rounded-lg bg-penn-blue p-3 text-white no-underline shadow-sm ring-1 ring-white/10 hover:bg-penn-blue-hover"
-          >
-            <div className="font-serif text-base font-semibold text-white">{e.name}</div>
-            <div className="mt-1 text-sm text-white/75">{e.location ?? "Location TBD"}</div>
-            {e.liveScore && <div className="tabular mt-1.5 text-base font-bold text-white">{e.liveScore}</div>}
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-penn-red px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
-              In progress
-            </div>
-          </Link>
+          <LiveEventCard key={e.id} event={e} />
         ))}
       </div>
     </section>
   );
+}
+
+function LiveEventCard({ event: e }: { event: ScheduleEvent }) {
+  // Only make the card a link when there's a destination worth the tap — right
+  // now that means a tournament bracket. Otherwise it's a static info card.
+  const base = "block min-w-[220px] shrink-0 rounded-lg bg-penn-blue p-3 text-white shadow-sm ring-1 ring-white/10";
+  const body = (
+    <>
+      <div className="font-serif text-base font-semibold text-white">{e.name}</div>
+      <div className="mt-1 text-sm text-white/75">{e.location ?? "Location TBD"}</div>
+      {e.liveScore && <div className="tabular mt-1.5 text-base font-bold text-white">{e.liveScore}</div>}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-penn-red px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+          In progress
+        </span>
+        {e.hasBracket && <span className="text-xs font-semibold text-white/90">View bracket →</span>}
+      </div>
+    </>
+  );
+
+  if (e.hasBracket) {
+    return (
+      <Link href={`/bracket/${e.id}`} className={`${base} no-underline transition-colors hover:bg-penn-blue-hover`}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={base}>{body}</div>;
 }
 
 function LiveDot() {

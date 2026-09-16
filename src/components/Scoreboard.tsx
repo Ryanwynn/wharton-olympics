@@ -301,7 +301,6 @@ function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
 
 // ── Schedule (§6.1) ────────────────────────────────────────────────────────────
 function ScheduleSection({ events }: { events: ScheduleEvent[] }) {
-  const [type, setType] = useState<"all" | "individual" | "team">("all");
   const [location, setLocation] = useState<string>("all");
 
   const locations = useMemo(
@@ -309,9 +308,7 @@ function ScheduleSection({ events }: { events: ScheduleEvent[] }) {
     [events]
   );
 
-  const filtered = events.filter(
-    (e) => (type === "all" || e.entryType === type) && (location === "all" || e.location === location)
-  );
+  const filtered = events.filter((e) => location === "all" || e.location === location);
 
   // Group by ET hour block, preserving the (already time-sorted) order.
   const groups: { label: string; items: ScheduleEvent[] }[] = [];
@@ -329,20 +326,6 @@ function ScheduleSection({ events }: { events: ScheduleEvent[] }) {
           Today&rsquo;s schedule
         </h2>
         <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Filter by entry type" className="inline-flex rounded-md border border-border bg-surface p-0.5">
-            {(["all", "individual", "team"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                aria-pressed={type === t}
-                className={`rounded px-3 py-1.5 text-sm capitalize ${
-                  type === t ? "bg-penn-blue font-semibold text-white" : "text-ink hover:bg-surface-alt"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
           <label className="sr-only" htmlFor="loc-filter">
             Filter by location
           </label>

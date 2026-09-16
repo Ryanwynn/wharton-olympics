@@ -1,21 +1,25 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtTime, fmtDayTime, fmtOpensLabel } from "@/lib/time";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MascotIcon } from "./MascotIcon";
 import type { BrowseEvent } from "@/lib/types";
+import type { CohortOption } from "@/lib/queries";
 
 export function EventsBrowser({
   initialEvents,
+  cohorts,
   signedIn,
 }: {
   initialEvents: BrowseEvent[];
+  cohorts: CohortOption[];
   signedIn: boolean;
 }) {
   const router = useRouter();
   const [events, setEvents] = useState(initialEvents);
-  const [filter, setFilter] = useState<"all" | "individual" | "team" | "mine">("all");
+  const [filter, setFilter] = useState<"all" | "mine">("all");
 
   // Resync from the server after router.refresh().
   useEffect(() => setEvents(initialEvents), [initialEvents]);
@@ -24,8 +28,6 @@ export function EventsBrowser({
     setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
 
   const shown = events.filter((e) => {
-    if (filter === "individual") return e.entryType === "individual";
-    if (filter === "team") return e.entryType === "team";
     if (filter === "mine") return e.viewer?.registrationStatus !== "none" || e.viewer?.team;
     return true;
   });
@@ -37,18 +39,20 @@ export function EventsBrowser({
           <h1 className="text-2xl font-bold sm:text-3xl">Events</h1>
           <p className="text-sm text-ink-muted">Register, form a team, and see what&rsquo;s filling up.</p>
         </div>
-        <div role="group" aria-label="Filter events" className="inline-flex rounded-md border border-border bg-surface p-0.5 text-sm">
-          {(["all", "individual", "team", ...(signedIn ? (["mine"] as const) : [])] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              aria-pressed={filter === f}
-              className={`rounded px-3 py-1.5 capitalize ${filter === f ? "bg-penn-blue font-semibold text-white" : "text-ink hover:bg-surface-alt"}`}
-            >
-              {f === "mine" ? "My events" : f}
-            </button>
-          ))}
-        </div>
+        {signedIn && (
+          <div role="group" aria-label="Filter events" className="inline-flex rounded-md border border-border bg-surface p-0.5 text-sm">
+            {(["all", "mine"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                aria-pressed={filter === f}
+                className={`rounded px-3 py-1.5 ${filter === f ? "bg-penn-blue font-semibold text-white" : "text-ink hover:bg-surface-alt"}`}
+              >
+                {f === "mine" ? "My events" : "All"}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {!signedIn && (
@@ -62,7 +66,7 @@ export function EventsBrowser({
 
       <div className="grid gap-4 sm:grid-cols-2">
         {shown.map((e) => (
-          <EventCard key={e.id} event={e} signedIn={signedIn} patch={patch} refresh={() => router.refresh()} />
+          <EventCard key={e.id} event={e} cohorts={cohorts} signedIn={signedIn} patch={patch} refresh={() => router.refresh()} />
         ))}
       </div>
     </div>
@@ -83,11 +87,13 @@ function actionState(e: BrowseEvent) {
 
 function EventCard({
   event: e,
+  cohorts,
   signedIn,
   patch,
   refresh,
 }: {
   event: BrowseEvent;
+  cohorts: CohortOption[];
   signedIn: boolean;
   patch: (id: string, changes: Partial<BrowseEvent>) => void;
   refresh: () => void;
@@ -200,7 +206,7 @@ function EventCard({
             Sign in to register
           </Link>
         ) : e.entryType === "team" ? (
-          <TeamArea event={e} busy={busy} call={call} state={st} onLeave={requestLeaveTeam} />
+          <TeamArea event={e} cohorts={cohorts} busy={busy} call={call} state={st} onLeave={requestLeaveTeam} />
         ) : (
           <IndividualArea event={e} busy={busy} state={st} onRegister={register} onWithdraw={requestWithdraw} viewer={viewer} />
         )}
@@ -286,12 +292,14 @@ function IndividualArea({
 
 function TeamArea({
   event: e,
+  cohorts,
   busy,
   call,
   state,
   onLeave,
 }: {
   event: BrowseEvent;
+  cohorts: CohortOption[];
   busy: boolean;
   call: (url: string, opts?: RequestInit) => Promise<any>;
   state: ReturnType<typeof actionState>;
@@ -300,18 +308,19 @@ function TeamArea({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const team = e.viewer?.team;
-
-  if (team) {
-    return <TeamPanel event={e} team={team} busy={busy} call={call} onLeave={onLeave} />;
-  }
-  if (state.notYetOpen) return <DisabledBtn label={`Opens ${fmtOpensLabel(e.signupOpensAt)}`} />;
-  if (state.closed) return <DisabledBtn label="Closed" />;
-
-  // Cluster-bound teams: you play on your own cluster's single team.
   const cohortId = e.viewer?.cohortId ?? null;
   const cohortName = e.viewer?.cohortName ?? null;
-  if (!cohortId) {
-    return (
+  const limit = e.maxTeamsPerCohort ?? 1;
+
+  let action: ReactNode;
+  if (team) {
+    action = <TeamPanel event={e} team={team} busy={busy} call={call} onLeave={onLeave} />;
+  } else if (state.notYetOpen) {
+    action = <DisabledBtn label={`Opens ${fmtOpensLabel(e.signupOpensAt)}`} />;
+  } else if (state.closed) {
+    action = <DisabledBtn label="Closed" />;
+  } else if (!cohortId) {
+    action = (
       <p className="text-sm text-ink-muted">
         Set your cluster on{" "}
         <Link href="/me" className="font-semibold text-penn-blue">
@@ -320,76 +329,129 @@ function TeamArea({
         to join or create a team.
       </p>
     );
+  } else {
+    const myClusterTeams = (e.teams ?? []).filter((t) => t.cohortId === cohortId);
+    const canCreate = myClusterTeams.length < limit;
+    const isFull = (memberCount: number) => e.maxTeamSize != null && memberCount >= e.maxTeamSize;
+    const sizeSuffix = (memberCount: number) => `${memberCount}${e.maxTeamSize ? `/${e.maxTeamSize}` : ""}`;
+    action = (
+      <div className="space-y-2">
+        <p className="text-xs text-ink-muted">
+          {myClusterTeams.length > 1 ? (
+            <>
+              Pick which <span className="font-medium text-penn-blue">{cohortName}</span> team to join
+            </>
+          ) : (
+            <>
+              Teams are per cluster — join the <span className="font-medium text-penn-blue">{cohortName}</span> team
+            </>
+          )}
+          {limit > 1 ? ` (up to ${limit} per cluster)` : ""}.
+        </p>
+
+        {myClusterTeams.length > 0 && (
+          <div className="space-y-1.5">
+            {myClusterTeams.map((t) =>
+              isFull(t.memberCount) ? (
+                <DisabledBtn key={t.id} label={`${t.name} is full (${sizeSuffix(t.memberCount)})`} />
+              ) : (
+                <button
+                  key={t.id}
+                  onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).catch(() => {})}
+                  disabled={busy}
+                  className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
+                >
+                  {busy ? "Joining…" : `Join ${t.name} (${sizeSuffix(t.memberCount)})`}
+                </button>
+              )
+            )}
+          </div>
+        )}
+
+        {canCreate &&
+          (!creating ? (
+            <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
+              {myClusterTeams.length === 0 ? `Create the ${cohortName} team` : `Create another ${cohortName} team`}
+            </button>
+          ) : (
+            <form
+              onSubmit={async (ev) => {
+                ev.preventDefault();
+                await call(`/api/events/${e.id}/teams`, { method: "POST", body: JSON.stringify({ name }) }).catch(() => {});
+              }}
+              className="space-y-2"
+            >
+              <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+              <div className="flex gap-2">
+                <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                  {busy ? "Creating…" : "Create team"}
+                </button>
+                <button type="button" onClick={() => setCreating(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ))}
+
+        {!canCreate && limit > 1 && (
+          <p className="text-[11px] text-ink-muted">Your cluster has filled all {limit} team slots for this event.</p>
+        )}
+      </div>
+    );
   }
 
-  const allTeams = e.teams ?? [];
-  const myClusterTeams = allTeams.filter((t) => t.cohortId === cohortId);
-  const others = allTeams.filter((t) => t.cohortId !== cohortId);
+  return (
+    <div className="space-y-3">
+      <ClusterTeamSummary event={e} cohorts={cohorts} viewerCohortId={cohortId} />
+      {action}
+    </div>
+  );
+}
+
+// How many teams each cluster is assembling for this event (always visible).
+function ClusterTeamSummary({
+  event: e,
+  cohorts,
+  viewerCohortId,
+}: {
+  event: BrowseEvent;
+  cohorts: CohortOption[];
+  viewerCohortId: string | null;
+}) {
+  const byCohort = new Map<string, { teams: number; players: number }>();
+  for (const t of e.teams ?? []) {
+    if (!t.cohortId) continue;
+    const cur = byCohort.get(t.cohortId) ?? { teams: 0, players: 0 };
+    cur.teams += 1;
+    cur.players += t.memberCount;
+    byCohort.set(t.cohortId, cur);
+  }
   const limit = e.maxTeamsPerCohort ?? 1;
-  const canCreate = myClusterTeams.length < limit;
-  const isFull = (memberCount: number) => e.maxTeamSize != null && memberCount >= e.maxTeamSize;
-  const sizeSuffix = (memberCount: number) => `${memberCount}${e.maxTeamSize ? `/${e.maxTeamSize}` : ""}`;
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-ink-muted">
-        Teams are per cluster — join a <span className="font-medium text-penn-blue">{cohortName}</span> team
-        {limit > 1 ? ` (your cluster may enter up to ${limit})` : ""}.
+    <div className="rounded-md border border-border bg-surface-alt/60 p-2.5">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        Teams by cluster{limit > 1 ? ` · up to ${limit} each` : ""}
       </p>
-
-      {myClusterTeams.length > 0 && (
-        <div className="space-y-1.5">
-          {myClusterTeams.map((t) =>
-            isFull(t.memberCount) ? (
-              <DisabledBtn key={t.id} label={`${t.name} is full (${sizeSuffix(t.memberCount)})`} />
-            ) : (
-              <button
-                key={t.id}
-                onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).catch(() => {})}
-                disabled={busy}
-                className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
-              >
-                {busy ? "Joining…" : `Join ${t.name} (${sizeSuffix(t.memberCount)})`}
-              </button>
-            )
-          )}
-        </div>
-      )}
-
-      {canCreate &&
-        (!creating ? (
-          <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
-            {myClusterTeams.length === 0 ? `Create the ${cohortName} team` : `Create another ${cohortName} team`}
-          </button>
-        ) : (
-          <form
-            onSubmit={async (ev) => {
-              ev.preventDefault();
-              await call(`/api/events/${e.id}/teams`, { method: "POST", body: JSON.stringify({ name }) }).catch(() => {});
-            }}
-            className="space-y-2"
-          >
-            <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
-            <div className="flex gap-2">
-              <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                {busy ? "Creating…" : "Create team"}
-              </button>
-              <button type="button" onClick={() => setCreating(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
-                Cancel
-              </button>
-            </div>
-          </form>
-        ))}
-
-      {!canCreate && limit > 1 && (
-        <p className="text-[11px] text-ink-muted">Your cluster has filled all {limit} team slots for this event.</p>
-      )}
-
-      {others.length > 0 && (
-        <p className="text-xs text-ink-muted">
-          Other clusters: {others.map((t) => `${t.cohortName ?? "?"} (${t.memberCount})`).join(" · ")}
-        </p>
-      )}
+      <ul className="space-y-1">
+        {cohorts.map((c) => {
+          const s = byCohort.get(c.id) ?? { teams: 0, players: 0 };
+          const mine = c.id === viewerCohortId;
+          return (
+            <li key={c.id} className="flex items-center gap-2 text-sm">
+              <MascotIcon icon={c.iconKey} size={20} color={c.colorHex} />
+              <span className="min-w-0 flex-1 truncate">
+                <span className={`font-medium ${mine ? "text-penn-blue" : "text-ink"}`}>{c.name}</span>
+                {mine && <span className="ml-1 text-[10px] font-semibold uppercase text-penn-blue">you</span>}
+              </span>
+              <span className="tabular shrink-0 text-xs text-ink-muted">
+                <span className={`font-semibold ${s.teams ? "text-ink" : ""}`}>{s.teams}</span> {s.teams === 1 ? "team" : "teams"}
+                {s.players > 0 && ` · ${s.players} ${s.players === 1 ? "player" : "players"}`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -314,7 +314,7 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
       spotsRemaining,
       liveScore: e.live_score ?? null,
       hasBracket: Boolean(e.has_bracket),
-      teams: team ? [] : teamsByEvent.get(e.id) ?? [], // hide the list if the viewer already has a team
+      teams: teamsByEvent.get(e.id) ?? [], // always included so the UI can show per-cluster team counts
       viewer: userId
         ? { registrationStatus, waitlistPos: indiv?.pos ?? null, team, cohortId: viewerCohort?.id ?? null, cohortName: viewerCohort?.name ?? null }
         : null,

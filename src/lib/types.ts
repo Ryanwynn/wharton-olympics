@@ -34,6 +34,7 @@ export interface ScheduleEvent {
   endsAt: string | null;
   location: string | null;
   locationNote: string | null;
+  mapUrl: string | null; // Google Maps (or any) link to the location
   capacity: number | null;
   registeredCount: number;
   liveScore: string | null;

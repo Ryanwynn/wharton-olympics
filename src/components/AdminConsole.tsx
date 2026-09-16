@@ -20,6 +20,7 @@ export interface AdminEvent {
   minTeamSize: number | null;
   maxTeamSize: number | null;
   maxTeamsPerCohort: number | null;
+  mapUrl: string | null;
   startsAt: string | null;
   endsAt: string | null;
   location: string | null;
@@ -121,6 +122,15 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
       setError((e as Error).message);
     }
   }
+  async function setLive(ev: AdminEvent, live: boolean) {
+    setError(null);
+    try {
+      await api(`/api/admin/events/${ev.id}/status`, { method: "POST", body: JSON.stringify({ status: live ? "in_progress" : "published" }) });
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -163,6 +173,16 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                       {(ev.status === "draft" || ev.status === "published") && (
                         <button onClick={() => toggle(ev)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
                           {ev.status === "draft" ? "Publish" : "Unpublish"}
+                        </button>
+                      )}
+                      {ev.status === "published" && (
+                        <button onClick={() => setLive(ev, true)} className="rounded bg-penn-red px-2 py-1 text-xs font-semibold text-white hover:bg-penn-red-hover">
+                          Go live
+                        </button>
+                      )}
+                      {ev.status === "in_progress" && (
+                        <button onClick={() => setLive(ev, false)} className="rounded border border-penn-red px-2 py-1 text-xs font-semibold text-penn-red hover:bg-penn-red/5">
+                          End live
                         </button>
                       )}
                       {/* Draft and published events are editable. */}
@@ -242,6 +262,7 @@ function initialForm(event?: AdminEvent) {
     max_teams_per_cohort: event.maxTeamsPerCohort ?? 1,
     location: event.location ?? "",
     location_note: event.locationNote ?? "",
+    map_url: event.mapUrl ?? "",
     starts_at: toDatetimeLocal(event.startsAt),
     ends_at: toDatetimeLocal(event.endsAt),
     signup_opens_at: toDatetimeLocal(event.signupOpensAt),
@@ -270,6 +291,7 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         waitlist_enabled: f.waitlist_enabled,
         location: f.location || null,
         location_note: f.location_note || null,
+        map_url: f.map_url || null,
         starts_at: f.starts_at ? new Date(f.starts_at).toISOString() : null,
         ends_at: f.ends_at ? new Date(f.ends_at).toISOString() : null,
         signup_opens_at: f.signup_opens_at ? new Date(f.signup_opens_at).toISOString() : null,
@@ -321,6 +343,10 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
       )}
       <label className="text-xs font-medium text-ink-muted">Location<input className={input} value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Location note<input className={input} value={f.location_note ?? ""} onChange={(e) => set("location_note", e.target.value)} /></label>
+      <label className="text-xs font-medium text-ink-muted sm:col-span-2">Google Maps link
+        <input className={input} placeholder="https://maps.google.com/… or https://maps.app.goo.gl/…" value={f.map_url ?? ""} onChange={(e) => set("map_url", e.target.value)} />
+        <span className="mt-0.5 block font-normal text-ink-muted/80">Shows as a “Google Maps” link under the event on the schedule.</span>
+      </label>
       <label className="text-xs font-medium text-ink-muted">Starts<input type="datetime-local" className={input} value={f.starts_at ?? ""} onChange={(e) => set("starts_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Ends<input type="datetime-local" className={input} value={f.ends_at ?? ""} onChange={(e) => set("ends_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Signup opens<input type="datetime-local" className={input} value={f.signup_opens_at ?? ""} onChange={(e) => set("signup_opens_at", e.target.value)} /></label>

@@ -22,6 +22,7 @@ const EDITABLE: Record<string, string> = {
   ends_at: "ts",
   location: "text",
   location_note: "text",
+  map_url: "url",
   points_schema: "json",
   sort_order: "int",
 };
@@ -39,6 +40,10 @@ export const PATCH = route(async (req: Request, { params }: { params: { id: stri
     let v = body[key];
     if (kind === "json") v = v == null ? null : JSON.stringify(v);
     if (kind === "int" && v === "") v = null;
+    if (kind === "url") {
+      const s = typeof v === "string" ? v.trim() : "";
+      v = s ? (/^https?:\/\//i.test(s) ? s : `https://${s}`) : null;
+    }
     vals.push(v);
     sets.push(`${key} = $${vals.length}`);
   }

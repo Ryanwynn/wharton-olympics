@@ -399,6 +399,16 @@ function ScheduleRow({ event }: { event: ScheduleEvent }) {
             <TypeBadge type={event.entryType} />
           </div>
           <div className="mt-0.5 truncate text-xs text-ink-muted">{event.location ?? "Location TBD"}</div>
+          {event.mapUrl && (
+            <a
+              href={event.mapUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-penn-blue hover:underline"
+            >
+              <span aria-hidden>📍</span> Google Maps
+            </a>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <StatusBadge status={event.status} />

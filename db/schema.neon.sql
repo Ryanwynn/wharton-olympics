@@ -81,6 +81,7 @@ CREATE TABLE events (
   ends_at          timestamptz,
   location         text,
   location_note    text,
+  map_url          text,
   status           event_status NOT NULL DEFAULT 'draft',
   points_schema    jsonb,
   live_score       text,

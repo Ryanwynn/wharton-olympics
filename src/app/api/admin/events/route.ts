@@ -9,6 +9,13 @@ import { slugify } from "@/lib/format";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Trim to null and prepend https:// when a scheme is missing. */
+function normalizeUrl(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  if (!s) return null;
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 export const GET = route(async () => {
   await requireAdmin();
   return NextResponse.json({ events: await listAdminEvents() });
@@ -23,6 +30,7 @@ export const POST = route(async (req: Request) => {
     return jsonError("Team events need a valid min/max team size.", 400);
   }
   const teamsPerCohort = b.entry_type === "team" ? Math.max(1, Number(b.max_teams_per_cohort) || 1) : 1;
+  const mapUrl = normalizeUrl(b.map_url);
 
   const season = await queryOne<{ id: string }>(`SELECT id FROM seasons WHERE is_active LIMIT 1`);
   if (!season) return jsonError("No active season.", 500);
@@ -38,8 +46,8 @@ export const POST = route(async (req: Request) => {
   const ev = await queryOne<any>(
     `INSERT INTO events (season_id, slug, name, description, entry_type, min_team_size, max_team_size,
        max_teams_per_cohort, capacity, waitlist_enabled, signup_opens_at, signup_closes_at, starts_at, ends_at,
-       location, location_note, points_schema, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'draft') RETURNING id, slug`,
+       location, location_note, map_url, points_schema, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft') RETURNING id, slug`,
     [
       season.id, slug, b.name, b.description ?? null, b.entry_type,
       b.entry_type === "team" ? b.min_team_size : null,
@@ -47,7 +55,7 @@ export const POST = route(async (req: Request) => {
       teamsPerCohort,
       b.capacity ?? null, b.waitlist_enabled ?? true,
       b.signup_opens_at ?? null, b.signup_closes_at ?? null, b.starts_at ?? null, b.ends_at ?? null,
-      b.location ?? null, b.location_note ?? null,
+      b.location ?? null, b.location_note ?? null, mapUrl,
       b.points_schema ? JSON.stringify(b.points_schema) : null,
     ]
   );

@@ -69,7 +69,7 @@ export async function getStandings(): Promise<StandingRow[]> {
 export async function getSchedule(): Promise<ScheduleEvent[]> {
   const rows = await query<any>(
     `SELECT e.id, e.slug, e.name, e.entry_type, e.status,
-            e.starts_at, e.ends_at, e.location, e.location_note, e.capacity, e.live_score, e.has_bracket,
+            e.starts_at, e.ends_at, e.location, e.location_note, e.map_url, e.capacity, e.live_score, e.has_bracket,
             (SELECT count(*) FROM registrations r
               WHERE r.event_id = e.id AND r.status = 'registered')::int AS registered_count
        FROM events e
@@ -91,6 +91,7 @@ function mapScheduleRow(e: any): ScheduleEvent {
     endsAt: e.ends_at ? new Date(e.ends_at).toISOString() : null,
     location: e.location,
     locationNote: e.location_note,
+    mapUrl: e.map_url ?? null,
     capacity: e.capacity,
     registeredCount: Number(e.registered_count ?? 0),
     liveScore: e.live_score ?? null,

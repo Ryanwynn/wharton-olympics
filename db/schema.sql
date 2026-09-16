@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS events (
   ends_at          timestamptz,
   location         text,
   location_note    text,
+  map_url          text,                           -- Google Maps (or any) link to the location
   status           event_status NOT NULL DEFAULT 'draft',
   points_schema    jsonb,
   live_score       text,                           -- free-text running score while in_progress (§ live score)

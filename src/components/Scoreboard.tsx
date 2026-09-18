@@ -80,7 +80,7 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
             <h1 id="standings-heading" className="text-2xl font-bold sm:text-3xl">
-              Cluster standings
+              Cluster Standings
             </h1>
             <p className="text-sm text-ink-muted">Overall points across all completed events.</p>
           </div>

@@ -422,6 +422,12 @@ function ScheduleRow({ event }: { event: ScheduleEvent }) {
               <span aria-hidden>📍</span> Google Maps
             </a>
           )}
+          {(event.championshipStartsAt || event.championshipLocation) && (
+            <div className="mt-0.5 text-xs text-penn-red">
+              🏆 Championship{event.championshipStartsAt ? ` ${fmtTime(event.championshipStartsAt)}` : ""}
+              {event.championshipLocation ? ` · ${event.championshipLocation}` : ""}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <StatusBadge status={event.status} />

@@ -23,6 +23,11 @@ const EDITABLE: Record<string, string> = {
   location: "text",
   location_note: "text",
   map_url: "url",
+  auto_go_live: "bool",
+  championship_location: "text",
+  championship_map_url: "url",
+  championship_starts_at: "ts",
+  championship_ends_at: "ts",
   points_schema: "json",
   sort_order: "int",
 };

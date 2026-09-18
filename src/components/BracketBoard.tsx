@@ -1,18 +1,42 @@
 "use client";
 import { MascotIcon } from "./MascotIcon";
+import { fmtDayTime, fmtTime } from "@/lib/time";
 import type { BracketView, BracketMatchView, BracketEntrantLite } from "@/lib/types";
 
 function roundName(idx: number, total: number): string {
   const fromEnd = total - idx;
-  if (fromEnd === 1) return "Final";
+  if (fromEnd === 1) return "Championship";
   if (fromEnd === 2) return "Semifinals";
   if (fromEnd === 3) return "Quarterfinals";
   return `Round of ${2 ** fromEnd}`;
 }
 
 export function BracketBoard({ bracket }: { bracket: BracketView }) {
+  const hasChamp = bracket.championshipLocation || bracket.championshipStartsAt;
   return (
     <div>
+      {hasChamp && (
+        <div className="mb-4 rounded-lg border border-penn-red/25 bg-penn-red/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-penn-red">
+            <span>🏆</span> Championship
+          </div>
+          <div className="mt-1 text-sm text-ink">
+            {bracket.championshipStartsAt && (
+              <span className="font-medium">
+                {fmtDayTime(bracket.championshipStartsAt)}
+                {bracket.championshipEndsAt ? `–${fmtTime(bracket.championshipEndsAt)}` : ""}
+              </span>
+            )}
+            {bracket.championshipStartsAt && bracket.championshipLocation ? " · " : ""}
+            {bracket.championshipLocation}
+          </div>
+          {bracket.championshipMapUrl && (
+            <a href={bracket.championshipMapUrl} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-xs font-medium text-penn-blue hover:underline">
+              📍 Google Maps
+            </a>
+          )}
+        </div>
+      )}
       {bracket.champion && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-penn-blue/20 bg-penn-blue-tint px-4 py-3">
           <span className="text-lg">🏆</span>

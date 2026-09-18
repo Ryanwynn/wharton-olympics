@@ -82,7 +82,13 @@ CREATE TABLE IF NOT EXISTS events (
   location         text,
   location_note    text,
   map_url          text,                           -- Google Maps (or any) link to the location
+  -- Championship (the bracket final) can run at a different place/time than the regular rounds.
+  championship_location   text,
+  championship_map_url    text,
+  championship_starts_at  timestamptz,
+  championship_ends_at    timestamptz,
   status           event_status NOT NULL DEFAULT 'draft',
+  auto_go_live     boolean NOT NULL DEFAULT true,   -- when true, a published event shows as live once starts_at passes
   points_schema    jsonb,
   live_score       text,                           -- free-text running score while in_progress (§ live score)
   has_bracket      boolean NOT NULL DEFAULT false,  -- true once a bracket is generated

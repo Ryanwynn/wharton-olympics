@@ -189,6 +189,24 @@ function EventCard({
             <dd className="font-medium text-ink">{teamsPerCluster === 1 ? "1 team" : `Up to ${teamsPerCluster} teams`}</dd>
           </div>
         )}
+        {(e.championshipStartsAt || e.championshipLocation) && (
+          <div className="flex gap-2">
+            <dt className="w-16 shrink-0 text-penn-red">🏆 Champ.</dt>
+            <dd className="text-ink">
+              {e.championshipStartsAt ? fmtDayTime(e.championshipStartsAt) : ""}
+              {e.championshipStartsAt && e.championshipLocation ? " · " : ""}
+              {e.championshipLocation}
+              {e.championshipMapUrl && (
+                <>
+                  {" "}
+                  <a href={e.championshipMapUrl} target="_blank" rel="noreferrer" className="font-medium text-penn-blue hover:underline">
+                    (map)
+                  </a>
+                </>
+              )}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {e.hasBracket && (

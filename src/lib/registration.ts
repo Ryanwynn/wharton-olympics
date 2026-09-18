@@ -1,5 +1,6 @@
 import { tx, query, queryOne, type Queryable } from "./db";
 import { generateInviteCode } from "./crypto";
+import { isEffectivelyLive } from "./eventStatus";
 
 /**
  * Registration + capacity logic (§9.2). Capacity is enforced atomically: every
@@ -20,16 +21,21 @@ interface EventRow {
   capacity: number | null;
   waitlist_enabled: boolean;
   status: string;
+  starts_at: string | null;
   signup_opens_at: string | null;
   signup_closes_at: string | null;
   min_team_size: number | null;
   max_team_size: number | null;
   max_teams_per_cohort: number | null;
+  auto_go_live: boolean;
 }
 
 function assertSignupOpen(ev: EventRow) {
   const now = Date.now();
   if (ev.status !== "published") throw new RegError(409, "Registration isn't open for this event.");
+  // A published event that has auto-gone-live (start time passed) is closed to signups.
+  if (isEffectivelyLive(ev.status, ev.starts_at, ev.auto_go_live))
+    throw new RegError(409, "This event has already started.");
   if (ev.signup_opens_at && new Date(ev.signup_opens_at).getTime() > now)
     throw new RegError(409, "Signups haven't opened yet.");
   if (ev.signup_closes_at && new Date(ev.signup_closes_at).getTime() < now)

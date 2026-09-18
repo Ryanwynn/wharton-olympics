@@ -141,7 +141,11 @@ async function entrantLabels(eventId: string, publicView: boolean): Promise<Map<
 }
 
 export async function getBracket(eventId: string, publicView = false): Promise<BracketView | null> {
-  const ev = await queryOne<any>(`SELECT id, name, slug FROM events WHERE id = $1`, [eventId]);
+  const ev = await queryOne<any>(
+    `SELECT id, name, slug, championship_location, championship_map_url, championship_starts_at, championship_ends_at
+       FROM events WHERE id = $1`,
+    [eventId]
+  );
   if (!ev) return null;
   const matches = await query<any>(`SELECT * FROM bracket_matches WHERE event_id = $1 ORDER BY round ASC, slot ASC`, [eventId]);
   if (matches.length === 0) return null;
@@ -168,5 +172,15 @@ export async function getBracket(eventId: string, publicView = false): Promise<B
   const finalMatch = matches.find((m) => m.round === maxRound);
   const champion = finalMatch && finalMatch.status === "final" && finalMatch.winner ? ent(finalMatch.winner) : null;
 
-  return { eventId: ev.id, eventName: ev.name, slug: ev.slug, rounds, champion };
+  return {
+    eventId: ev.id,
+    eventName: ev.name,
+    slug: ev.slug,
+    rounds,
+    champion,
+    championshipLocation: ev.championship_location ?? null,
+    championshipMapUrl: ev.championship_map_url ?? null,
+    championshipStartsAt: ev.championship_starts_at ? new Date(ev.championship_starts_at).toISOString() : null,
+    championshipEndsAt: ev.championship_ends_at ? new Date(ev.championship_ends_at).toISOString() : null,
+  };
 }

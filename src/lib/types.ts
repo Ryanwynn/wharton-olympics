@@ -35,6 +35,10 @@ export interface ScheduleEvent {
   location: string | null;
   locationNote: string | null;
   mapUrl: string | null; // Google Maps (or any) link to the location
+  championshipLocation: string | null;
+  championshipMapUrl: string | null;
+  championshipStartsAt: string | null;
+  championshipEndsAt: string | null;
   capacity: number | null;
   registeredCount: number;
   liveScore: string | null;
@@ -78,6 +82,11 @@ export interface BrowseEvent {
   endsAt: string | null;
   location: string | null;
   locationNote: string | null;
+  mapUrl: string | null;
+  championshipLocation: string | null;
+  championshipMapUrl: string | null;
+  championshipStartsAt: string | null;
+  championshipEndsAt: string | null;
   capacity: number | null;
   registeredCount: number;
   waitlistCount: number;
@@ -124,6 +133,11 @@ export interface BracketView {
   slug: string;
   rounds: BracketMatchView[][]; // rounds[0] = first round
   champion: BracketEntrantLite | null;
+  // The final match (championship) can run at a different place/time than the rounds.
+  championshipLocation: string | null;
+  championshipMapUrl: string | null;
+  championshipStartsAt: string | null;
+  championshipEndsAt: string | null;
 }
 
 export interface AgendaItem {

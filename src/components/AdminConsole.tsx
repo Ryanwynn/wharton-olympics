@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fmtDayTime, fmtTime } from "@/lib/time";
 import { entryTypeLabel, eventStatusLabel, toDatetimeLocal } from "@/lib/format";
 import { BulkEventGrid } from "./BulkEventGrid";
+import { isEffectivelyLive } from "@/lib/eventStatus";
 import type { CohortOption } from "@/lib/queries";
 import type { FoodTruck } from "@/lib/types";
 
@@ -21,6 +22,11 @@ export interface AdminEvent {
   maxTeamSize: number | null;
   maxTeamsPerCohort: number | null;
   mapUrl: string | null;
+  autoGoLive: boolean;
+  championshipLocation: string | null;
+  championshipMapUrl: string | null;
+  championshipStartsAt: string | null;
+  championshipEndsAt: string | null;
   startsAt: string | null;
   endsAt: string | null;
   location: string | null;
@@ -125,7 +131,19 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
   async function setLive(ev: AdminEvent, live: boolean) {
     setError(null);
     try {
-      await api(`/api/admin/events/${ev.id}/status`, { method: "POST", body: JSON.stringify({ status: live ? "in_progress" : "published" }) });
+      // Go live = force in_progress. End live = back to published AND turn auto off,
+      // so an already-started (auto-live) event actually stops instead of re-going-live.
+      const body = live ? { status: "in_progress" } : { status: "published", autoGoLive: false };
+      await api(`/api/admin/events/${ev.id}/status`, { method: "POST", body: JSON.stringify(body) });
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function setAuto(ev: AdminEvent, on: boolean) {
+    setError(null);
+    try {
+      await api(`/api/admin/events/${ev.id}/status`, { method: "POST", body: JSON.stringify({ autoGoLive: on }) });
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -158,29 +176,42 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
             </tr>
           </thead>
           <tbody>
-            {events.map((ev) => (
+            {events.map((ev) => {
+              const effLive = isEffectivelyLive(ev.status, ev.startsAt, ev.autoGoLive);
+              const effStatus = effLive ? "in_progress" : ev.status;
+              return (
               <Fragment key={ev.id}>
                 <tr className="border-t border-border">
                   <td className="px-3 py-2">
                     <div className="font-medium text-ink">{ev.name}</div>
                     <div className="text-xs text-ink-muted">{entryTypeLabel(ev.entryType)} · {fmtDayTime(ev.startsAt)} · {ev.location ?? "—"}</div>
                   </td>
-                  <td className="px-3 py-2"><StatusTag status={ev.status} /></td>
+                  <td className="px-3 py-2">
+                    <StatusTag status={effStatus} />
+                    {ev.status === "published" && !effLive && (
+                      <div className="mt-0.5 text-[10px] text-ink-muted">{ev.autoGoLive ? "auto-live at start" : "manual (auto off)"}</div>
+                    )}
+                  </td>
                   <td className="tabular px-3 py-2 text-right">{ev.registered}/{ev.capacity ?? "∞"}</td>
                   <td className="tabular px-3 py-2 text-right">{ev.waitlisted}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      {(ev.status === "draft" || ev.status === "published") && (
+                      {(ev.status === "draft" || (ev.status === "published" && !effLive)) && (
                         <button onClick={() => toggle(ev)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
                           {ev.status === "draft" ? "Publish" : "Unpublish"}
                         </button>
                       )}
-                      {ev.status === "published" && (
+                      {ev.status === "published" && !effLive && (
                         <button onClick={() => setLive(ev, true)} className="rounded bg-penn-red px-2 py-1 text-xs font-semibold text-white hover:bg-penn-red-hover">
                           Go live
                         </button>
                       )}
-                      {ev.status === "in_progress" && (
+                      {ev.status === "published" && !effLive && !ev.autoGoLive && (
+                        <button onClick={() => setAuto(ev, true)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
+                          Enable auto
+                        </button>
+                      )}
+                      {effLive && (
                         <button onClick={() => setLive(ev, false)} className="rounded border border-penn-red px-2 py-1 text-xs font-semibold text-penn-red hover:bg-penn-red/5">
                           End live
                         </button>
@@ -218,7 +249,8 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                   </tr>
                 )}
               </Fragment>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -248,7 +280,7 @@ function StatusTag({ status }: { status: string }) {
 
 function initialForm(event?: AdminEvent) {
   if (!event) {
-    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, max_teams_per_cohort: 1, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
+    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, max_teams_per_cohort: 1, auto_go_live: true, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
   }
   const ps = event.pointsSchema ?? {};
   return {
@@ -263,6 +295,11 @@ function initialForm(event?: AdminEvent) {
     location: event.location ?? "",
     location_note: event.locationNote ?? "",
     map_url: event.mapUrl ?? "",
+    auto_go_live: event.autoGoLive ?? true,
+    championship_location: event.championshipLocation ?? "",
+    championship_map_url: event.championshipMapUrl ?? "",
+    championship_starts_at: toDatetimeLocal(event.championshipStartsAt),
+    championship_ends_at: toDatetimeLocal(event.championshipEndsAt),
     starts_at: toDatetimeLocal(event.startsAt),
     ends_at: toDatetimeLocal(event.endsAt),
     signup_opens_at: toDatetimeLocal(event.signupOpensAt),
@@ -292,6 +329,11 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         location: f.location || null,
         location_note: f.location_note || null,
         map_url: f.map_url || null,
+        auto_go_live: f.auto_go_live !== false,
+        championship_location: f.championship_location || null,
+        championship_map_url: f.championship_map_url || null,
+        championship_starts_at: f.championship_starts_at ? new Date(f.championship_starts_at).toISOString() : null,
+        championship_ends_at: f.championship_ends_at ? new Date(f.championship_ends_at).toISOString() : null,
         starts_at: f.starts_at ? new Date(f.starts_at).toISOString() : null,
         ends_at: f.ends_at ? new Date(f.ends_at).toISOString() : null,
         signup_opens_at: f.signup_opens_at ? new Date(f.signup_opens_at).toISOString() : null,
@@ -351,6 +393,28 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
       <label className="text-xs font-medium text-ink-muted">Ends<input type="datetime-local" className={input} value={f.ends_at ?? ""} onChange={(e) => set("ends_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Signup opens<input type="datetime-local" className={input} value={f.signup_opens_at ?? ""} onChange={(e) => set("signup_opens_at", e.target.value)} /></label>
       <label className="text-xs font-medium text-ink-muted">Signup closes<input type="datetime-local" className={input} value={f.signup_closes_at ?? ""} onChange={(e) => set("signup_closes_at", e.target.value)} /></label>
+
+      <label className="flex items-start gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" className="mt-0.5" checked={f.auto_go_live !== false} onChange={(e) => set("auto_go_live", e.target.checked)} />
+        <span>
+          Automatically go live at start time
+          <span className="block text-xs font-normal text-ink-muted/80">Once the start time passes, the event shows as live on its own. Uncheck to keep it manual (e.g. a delay); you can still use the Go live / End live buttons.</span>
+        </span>
+      </label>
+
+      <fieldset className="sm:col-span-2 rounded-lg border border-border p-3">
+        <legend className="px-1 text-xs font-semibold text-ink-muted">Championship (optional)</legend>
+        <p className="mb-2 text-[11px] text-ink-muted">
+          If the bracket final runs at a different place or time than the regular rounds, set it here. The bracket winners feed into it automatically.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-medium text-ink-muted">Championship location<input className={input} value={f.championship_location ?? ""} onChange={(e) => set("championship_location", e.target.value)} /></label>
+          <label className="text-xs font-medium text-ink-muted">Championship Maps link<input className={input} placeholder="https://…" value={f.championship_map_url ?? ""} onChange={(e) => set("championship_map_url", e.target.value)} /></label>
+          <label className="text-xs font-medium text-ink-muted">Championship starts<input type="datetime-local" className={input} value={f.championship_starts_at ?? ""} onChange={(e) => set("championship_starts_at", e.target.value)} /></label>
+          <label className="text-xs font-medium text-ink-muted">Championship ends<input type="datetime-local" className={input} value={f.championship_ends_at ?? ""} onChange={(e) => set("championship_ends_at", e.target.value)} /></label>
+        </div>
+      </fieldset>
+
       <fieldset className="sm:col-span-2">
         <legend className="text-xs font-medium text-ink-muted">Points schema</legend>
         <div className="mt-1 grid grid-cols-4 gap-2">

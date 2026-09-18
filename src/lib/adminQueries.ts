@@ -89,6 +89,7 @@ export async function listAdminEvents() {
   const rows = await query<any>(
     `SELECT e.id, e.slug, e.name, e.description, e.entry_type, e.status, e.capacity, e.waitlist_enabled,
             e.min_team_size, e.max_team_size, e.max_teams_per_cohort, e.starts_at, e.ends_at, e.location, e.location_note, e.map_url,
+            e.auto_go_live, e.championship_location, e.championship_map_url, e.championship_starts_at, e.championship_ends_at,
             e.signup_opens_at, e.signup_closes_at, e.points_schema,
             (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'registered')::int AS registered,
             (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'waitlisted')::int AS waitlisted
@@ -113,6 +114,11 @@ export async function listAdminEvents() {
     location: e.location,
     locationNote: e.location_note ?? null,
     mapUrl: e.map_url ?? null,
+    autoGoLive: e.auto_go_live ?? true,
+    championshipLocation: e.championship_location ?? null,
+    championshipMapUrl: e.championship_map_url ?? null,
+    championshipStartsAt: e.championship_starts_at ? new Date(e.championship_starts_at).toISOString() : null,
+    championshipEndsAt: e.championship_ends_at ? new Date(e.championship_ends_at).toISOString() : null,
     signupOpensAt: e.signup_opens_at ? new Date(e.signup_opens_at).toISOString() : null,
     signupClosesAt: e.signup_closes_at ? new Date(e.signup_closes_at).toISOString() : null,
     pointsSchema: e.points_schema ?? null,

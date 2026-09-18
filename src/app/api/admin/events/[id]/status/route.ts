@@ -8,28 +8,47 @@ import { writeAudit } from "@/lib/audit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Flip an event's live state: published → in_progress ("Go live") and back.
+// Manage an event's live state. Accepts { status?, autoGoLive? }:
+//   status only toggles within {published, in_progress} ("Go live" / stop forcing);
+//   autoGoLive turns the auto-at-start behavior on/off (used to pause a delayed event).
 // (draft⇄published is handled by /publish; →complete by /finalize.)
-const ALLOWED: Record<string, string[]> = {
-  published: ["in_progress"],
-  in_progress: ["published"],
-};
-
 export const POST = route(async (req: Request, { params }: { params: { id: string } }) => {
   const admin = await requireAdmin();
-  const ev = await queryOne<{ id: string; status: string }>(`SELECT id, status FROM events WHERE id = $1`, [params.id]);
+  const ev = await queryOne<{ id: string; status: string; auto_go_live: boolean }>(
+    `SELECT id, status, auto_go_live FROM events WHERE id = $1`,
+    [params.id]
+  );
   if (!ev) return jsonError("Event not found.", 404);
 
-  const { status } = await readJson<{ status?: string }>(req);
-  if (status !== "in_progress" && status !== "published") return jsonError("Invalid status.", 400);
-  if (status === ev.status) return NextResponse.json({ ok: true, status }); // idempotent
-  if (!ALLOWED[ev.status]?.includes(status)) {
-    return jsonError(`Can't move a ${ev.status} event to ${status}. Publish it first, or finalize to end it.`, 409);
-  }
+  const { status, autoGoLive } = await readJson<{ status?: string; autoGoLive?: boolean }>(req);
+  const sets: string[] = [];
+  const vals: unknown[] = [];
 
-  await query(`UPDATE events SET status = $1, updated_at = now() WHERE id = $2`, [status, params.id]);
-  await writeAudit({ actorId: admin.id, action: "event.status", entityType: "event", entityId: params.id, before: { status: ev.status }, after: { status } });
+  if (status !== undefined) {
+    if (status !== "in_progress" && status !== "published") return jsonError("Invalid status.", 400);
+    if (!["published", "in_progress"].includes(ev.status)) {
+      return jsonError(`Can't change a ${ev.status} event's live state. Publish it first, or finalize to end it.`, 409);
+    }
+    vals.push(status);
+    sets.push(`status = $${vals.length}`);
+  }
+  if (autoGoLive !== undefined) {
+    vals.push(Boolean(autoGoLive));
+    sets.push(`auto_go_live = $${vals.length}`);
+  }
+  if (sets.length === 0) return jsonError("Nothing to change.", 400);
+
+  vals.push(params.id);
+  await query(`UPDATE events SET ${sets.join(", ")}, updated_at = now() WHERE id = $${vals.length}`, vals);
+  await writeAudit({
+    actorId: admin.id,
+    action: "event.status",
+    entityType: "event",
+    entityId: params.id,
+    before: { status: ev.status, autoGoLive: ev.auto_go_live },
+    after: { status: status ?? ev.status, autoGoLive: autoGoLive ?? ev.auto_go_live },
+  });
   revalidatePath("/");
   revalidatePath("/api/schedule");
-  return NextResponse.json({ ok: true, status });
+  return NextResponse.json({ ok: true });
 });

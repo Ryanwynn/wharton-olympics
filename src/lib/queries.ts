@@ -1,6 +1,7 @@
 import { query, queryOne } from "./db";
 import { publicName } from "./format";
 import { rangesOverlap } from "./time";
+import { effectiveStatus } from "./eventStatus";
 import type {
   IconKey,
   StandingRow,
@@ -69,7 +70,9 @@ export async function getStandings(): Promise<StandingRow[]> {
 export async function getSchedule(): Promise<ScheduleEvent[]> {
   const rows = await query<any>(
     `SELECT e.id, e.slug, e.name, e.entry_type, e.status,
-            e.starts_at, e.ends_at, e.location, e.location_note, e.map_url, e.capacity, e.live_score, e.has_bracket,
+            e.starts_at, e.ends_at, e.location, e.location_note, e.map_url, e.auto_go_live,
+            e.championship_location, e.championship_map_url, e.championship_starts_at, e.championship_ends_at,
+            e.capacity, e.live_score, e.has_bracket,
             (SELECT count(*) FROM registrations r
               WHERE r.event_id = e.id AND r.status = 'registered')::int AS registered_count
        FROM events e
@@ -86,12 +89,17 @@ function mapScheduleRow(e: any): ScheduleEvent {
     slug: e.slug,
     name: e.name,
     entryType: e.entry_type,
-    status: e.status,
+    // A published event auto-shows as live once its start time passes (§ auto go-live).
+    status: effectiveStatus(e.status, e.starts_at, e.auto_go_live ?? true),
     startsAt: e.starts_at ? new Date(e.starts_at).toISOString() : null,
     endsAt: e.ends_at ? new Date(e.ends_at).toISOString() : null,
     location: e.location,
     locationNote: e.location_note,
     mapUrl: e.map_url ?? null,
+    championshipLocation: e.championship_location ?? null,
+    championshipMapUrl: e.championship_map_url ?? null,
+    championshipStartsAt: e.championship_starts_at ? new Date(e.championship_starts_at).toISOString() : null,
+    championshipEndsAt: e.championship_ends_at ? new Date(e.championship_ends_at).toISOString() : null,
     capacity: e.capacity,
     registeredCount: Number(e.registered_count ?? 0),
     liveScore: e.live_score ?? null,
@@ -297,11 +305,16 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
       name: e.name,
       description: e.description,
       entryType: e.entry_type,
-      status: e.status,
+      status: effectiveStatus(e.status, e.starts_at, e.auto_go_live ?? true),
       startsAt: e.starts_at ? new Date(e.starts_at).toISOString() : null,
       endsAt: e.ends_at ? new Date(e.ends_at).toISOString() : null,
       location: e.location,
       locationNote: e.location_note,
+      mapUrl: e.map_url ?? null,
+      championshipLocation: e.championship_location ?? null,
+      championshipMapUrl: e.championship_map_url ?? null,
+      championshipStartsAt: e.championship_starts_at ? new Date(e.championship_starts_at).toISOString() : null,
+      championshipEndsAt: e.championship_ends_at ? new Date(e.championship_ends_at).toISOString() : null,
       capacity: e.capacity,
       registeredCount: Number(e.registered_count),
       waitlistCount: Number(e.waitlist_count),

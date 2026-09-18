@@ -275,7 +275,7 @@ function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
     <section aria-labelledby="trucks-heading">
       <h2 id="trucks-heading" className="mb-2 flex items-center gap-2 text-lg font-semibold">
         <span aria-hidden>🚚</span>
-        Food trucks
+        Food Trucks - Shoemaker Green
       </h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {trucks.map((t) => {

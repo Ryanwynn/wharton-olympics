@@ -336,7 +336,7 @@ function ScheduleSection({ events }: { events: ScheduleEvent[] }) {
     <section aria-labelledby="schedule-heading">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h2 id="schedule-heading" className="text-xl font-bold">
-          Today&rsquo;s schedule
+          Wharton Olympics Schedule
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="loc-filter">

@@ -215,14 +215,6 @@ function EventCard({
         </Link>
       )}
 
-      {/* Conflict warning — flagged, never blocked (§6.2, §6.4). */}
-      {e.conflictsWith && (
-        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          ⚠ Overlaps <span className="font-semibold">{e.conflictsWith.name}</span>
-          {e.conflictsWith.startsAt ? ` at ${fmtTime(e.conflictsWith.startsAt)}` : ""}. You can still register.
-        </p>
-      )}
-
       {error && (
         <p role="alert" className="mt-3 rounded-md bg-penn-red/5 px-3 py-2 text-xs text-penn-red">
           {error}
@@ -337,8 +329,6 @@ function TeamArea({
   state: ReturnType<typeof actionState>;
   onLeave: (teamId: string, teamName: string, isCaptain: boolean) => void;
 }) {
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
   const team = e.viewer?.team;
   const cohortId = e.viewer?.cohortId ?? null;
   const cohortName = e.viewer?.cohortName ?? null;
@@ -400,30 +390,15 @@ function TeamArea({
           </div>
         )}
 
-        {canCreate &&
-          (!creating ? (
-            <button onClick={() => setCreating(true)} className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint">
-              {myClusterTeams.length === 0 ? `Create the ${cohortName} team` : `Create another ${cohortName} team`}
-            </button>
-          ) : (
-            <form
-              onSubmit={async (ev) => {
-                ev.preventDefault();
-                await call(`/api/events/${e.id}/teams`, { method: "POST", body: JSON.stringify({ name }) }).catch(() => {});
-              }}
-              className="space-y-2"
-            >
-              <input value={name} onChange={(ev) => setName(ev.target.value)} required placeholder={`e.g. ${cohortName} ${e.name}`} className="w-full rounded-md border border-border px-3 py-2 text-sm" />
-              <div className="flex gap-2">
-                <button disabled={busy} className="flex-1 rounded-md bg-penn-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                  {busy ? "Creating…" : "Create team"}
-                </button>
-                <button type="button" onClick={() => setCreating(false)} className="rounded-md px-3 py-2 text-sm text-ink-muted">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ))}
+        {canCreate && (
+          <button
+            onClick={() => call(`/api/events/${e.id}/teams`, { method: "POST" }).catch(() => {})}
+            disabled={busy}
+            className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint disabled:opacity-60"
+          >
+            {busy ? "Creating…" : myClusterTeams.length === 0 ? `Create the ${cohortName} team` : `Create another ${cohortName} team`}
+          </button>
+        )}
 
         {!canCreate && limit > 1 && (
           <p className="text-[11px] text-ink-muted">Your cluster has filled all {limit} team slots for this event.</p>

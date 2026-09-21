@@ -137,12 +137,29 @@ delete process.env.DATABASE_URL;
   console.log("\n── Teams per cluster = 3 ──");
   console.log({ lionTeamsAtLimit, fourthTeamBlocked });
 
+  // ── Auto-generated team names ──
+  const tow = (
+    await query<any>(
+      `INSERT INTO events (season_id, slug, name, entry_type, min_team_size, max_team_size, max_teams_per_cohort,
+        capacity, waitlist_enabled, signup_opens_at, signup_closes_at, starts_at, status)
+       VALUES ($1,'tow','Tug of War','team',2,4,2,99,true,
+         now() - interval '1 hour', now() + interval '2 hours', now() + interval '3 hours','published') RETURNING id`,
+      [season.id]
+    )
+  )[0];
+  const n1 = await createTeam(lions[40], tow.id);
+  const n2 = await createTeam(lions[41], tow.id);
+  const single = await createTeam(dragons[40], tev.id); // limit-1 event "Team Ev"
+  console.log("\n── Auto team names ──");
+  console.log({ multi1: n1.name, multi2: n2.name, single: single.name });
+  const namesOk = n1.name === "Lions Tug of War Team 1" && n2.name === "Lions Tug of War Team 2" && single.name === "Dragons Team Ev";
+
   const pass =
     registered === 50 && waitlisted === 250 && dupes === 0 && maxPos === 250 &&
     JSON.stringify(dt1) === JSON.stringify(dt2) &&
     capCountAfterCreate === 0 && capCountAt2 === 0 && capCountAt3 === 1 && teamStatus === "registered" &&
     diffClusterBlocked && secondTeamSameClusterBlocked &&
-    lionTeamsAtLimit === 3 && fourthTeamBlocked;
+    lionTeamsAtLimit === 3 && fourthTeamBlocked && namesOk;
 
   console.log("\n" + (pass ? "✅ PASS — no oversell, waitlist correct, idempotent, cluster-bound teams correct" : "❌ FAIL"));
   // Hard-exit WITHOUT closing PGlite. Deleting the data dir and then calling close()

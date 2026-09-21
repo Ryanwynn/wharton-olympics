@@ -477,7 +477,6 @@ function RosterPanel({ event }: { event: AdminEvent }) {
               <span className="flex items-center gap-2">
                 <span className="text-ink">{e.label}</span>
                 {e.status === "waitlisted" && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">waitlist #{e.waitlistPos}</span>}
-                {e.conflict && <span title={`Overlaps ${e.conflict.name}`} className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">⚠ conflict</span>}
               </span>
               {e.status === "waitlisted" && (
                 <button onClick={() => promote(e.registrationId)} className="rounded border border-border px-2 py-0.5 text-xs text-penn-blue hover:bg-surface-alt">Promote</button>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { route, readJson, jsonError } from "@/lib/api";
+import { route, jsonError } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { createTeam } from "@/lib/registration";
 import { rateLimitAll, MINUTE } from "@/lib/ratelimit";
@@ -14,9 +14,8 @@ export const POST = route(async (req: Request, { params }: { params: { id: strin
   const tripped = await rateLimitAll([{ key: `write:user:${user.id}:m`, limit: 30, windowMs: MINUTE }]);
   if (tripped) return jsonError("You're going too fast. Try again in a moment.", 429);
 
-  const { name } = await readJson<{ name?: string }>(req);
-  if (!name) return jsonError("Give your team a name.", 400);
-  const result = await createTeam(user.id, params.id, name);
-  await writeAudit({ actorId: user.id, action: "team.create", entityType: "team", entityId: result.teamId, after: { name, eventId: params.id } });
+  // The team name is generated server-side ("Dragons Rock Paper Scissors", "Lions Tug of War Team 2").
+  const result = await createTeam(user.id, params.id);
+  await writeAudit({ actorId: user.id, action: "team.create", entityType: "team", entityId: result.teamId, after: { name: result.name, eventId: params.id } });
   return NextResponse.json({ ok: true, ...result });
 });

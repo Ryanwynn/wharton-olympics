@@ -1,6 +1,7 @@
 import { tx, query, queryOne, type Queryable } from "./db";
 import { generateInviteCode } from "./crypto";
 import { isEffectivelyLive } from "./eventStatus";
+import { buildTeamName } from "./teamName";
 
 /**
  * Registration + capacity logic (§9.2). Capacity is enforced atomically: every
@@ -17,6 +18,7 @@ export class RegError extends Error {
 
 interface EventRow {
   id: string;
+  name: string;
   entry_type: "individual" | "team";
   capacity: number | null;
   waitlist_enabled: boolean;
@@ -154,11 +156,13 @@ async function assertSameCluster(t: Queryable, userId: string, teamCohortId: str
 }
 
 // ── Teams ──────────────────────────────────────────────────────────────────────
-// Teams are cluster-bound: exactly one team per cluster per event, and only users
-// with that cluster affiliation may join it.
-export async function createTeam(userId: string, eventId: string, name: string) {
-  const clean = name.trim();
-  if (clean.length < 2 || clean.length > 60) throw new RegError(400, "Team name must be 2–60 characters.");
+// Teams are cluster-bound: a cluster may enter up to events.max_teams_per_cohort teams
+// per event, and only users with that cluster affiliation may join them. The name is
+// generated ("Dragons Rock Paper Scissors", "Lions Tug of War Team 2") unless an
+// explicit one is passed (seed/test scripts).
+export async function createTeam(userId: string, eventId: string, name?: string) {
+  const explicit = name?.trim() || null;
+  if (explicit && (explicit.length < 2 || explicit.length > 60)) throw new RegError(400, "Team name must be 2–60 characters.");
   return tx(async (t) => {
     const ev = await lockEvent(t, eventId);
     if (ev.entry_type !== "team") throw new RegError(400, "This is an individual event.");
@@ -187,8 +191,16 @@ export async function createTeam(userId: string, eventId: string, name: string) 
       );
     }
 
-    const dup = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND lower(name) = lower($2)`, [eventId, clean])).rows[0];
-    if (dup) throw new RegError(409, "A team with that name already exists for this event.");
+    let clean: string;
+    if (explicit) {
+      clean = explicit;
+      const dup = (await t.query(`SELECT 1 FROM teams WHERE event_id = $1 AND lower(name) = lower($2)`, [eventId, clean])).rows[0];
+      if (dup) throw new RegError(409, "A team with that name already exists for this event.");
+    } else {
+      const cohortName = (await t.query<{ name: string }>(`SELECT name FROM cohorts WHERE id = $1`, [cohortId])).rows[0]?.name ?? "";
+      const taken = (await t.query<{ name: string }>(`SELECT name FROM teams WHERE event_id = $1`, [eventId])).rows.map((r) => r.name);
+      clean = buildTeamName(cohortName, ev.name, limit > 1, taken);
+    }
 
     let invite = generateInviteCode();
     // Ensure global uniqueness of the invite code.
@@ -208,7 +220,7 @@ export async function createTeam(userId: string, eventId: string, name: string) 
     await t.query(`INSERT INTO team_members (team_id, user_id, event_id) VALUES ($1, $2, $3)`, [team.id, userId, eventId]);
     await reevaluateTeam(t, team.id);
     const status = await teamStatus(t, team.id);
-    return { teamId: team.id, inviteCode: invite, status };
+    return { teamId: team.id, name: clean, inviteCode: invite, status };
   });
 }
 

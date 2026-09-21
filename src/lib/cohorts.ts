@@ -14,8 +14,8 @@ export interface CohortSeed {
 }
 
 export const COHORTS: CohortSeed[] = [
-  { name: "Lions", iconKey: "lion", colorHex: "#E67E22", sortOrder: 1 },
+  { name: "Lions", iconKey: "lion", colorHex: "#942824", sortOrder: 1 },
   { name: "Dragons", iconKey: "dragon", colorHex: "#1B7F5E", sortOrder: 2 },
   { name: "Bees", iconKey: "bee", colorHex: "#D99400", sortOrder: 3 },
-  { name: "Tigers", iconKey: "tiger", colorHex: "#C2410C", sortOrder: 4 },
+  { name: "Tigers", iconKey: "tiger", colorHex: "#FC6818", sortOrder: 4 },
 ];

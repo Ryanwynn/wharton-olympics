@@ -21,10 +21,10 @@
   --border: #d8dce3;
 
   /* Cohort palette — distinct from brand primaries so Penn Red never reads as a team color. */
-  --cohort-lion: #e67e22; /* orange */
+  --cohort-lion: #942824; /* red (matches the Lions crest) */
   --cohort-dragon: #1b7f5e; /* jade green */
   --cohort-bee: #d99400; /* amber */
-  --cohort-tiger: #c2410c; /* burnt orange */
+  --cohort-tiger: #fc6818; /* orange (matches the Tigers crest) */
 
   --font-serif: Georgia, "Times New Roman", serif;
   --font-sans: system-ui, -apple-system, Arial, sans-serif;

@@ -15,7 +15,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
 
   const nav = [
     { href: "/", label: "Schedule" },
-    { href: "/events", label: "Events" },
+    { href: "/events", label: "Event Sign Up" },
     ...(user ? [{ href: "/me", label: "My events" }] : []),
     ...(user?.isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];

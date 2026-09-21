@@ -91,9 +91,9 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
 
       {liveEvents.length > 0 && <HappeningNow events={liveEvents} />}
 
-      {foodTrucks.length > 0 && <FoodTrucksSection trucks={foodTrucks} />}
-
       <ScheduleSection events={schedule} />
+
+      {foodTrucks.length > 0 && <FoodTrucksSection trucks={foodTrucks} />}
     </div>
   );
 }
@@ -277,17 +277,16 @@ function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
         <span aria-hidden>🚚</span>
         Food Trucks - Shoemaker Green
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* One compact row: cards share the width evenly; on narrow screens the row scrolls sideways. */}
+      <div className="flex items-start gap-2 overflow-x-auto pb-1">
         {trucks.map((t) => {
           const items = menuItems(t.menuText);
           return (
-            <div key={t.id} className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-serif text-base font-semibold text-penn-blue">{t.name}</h3>
-                {t.location && <span className="shrink-0 text-xs text-ink-muted">{t.location}</span>}
-              </div>
+            <div key={t.id} className="min-w-[150px] flex-1 basis-0 rounded-lg border border-border bg-surface p-2.5 shadow-sm">
+              <h3 className="font-serif text-sm font-semibold leading-tight text-penn-blue">{t.name}</h3>
+              {t.location && <div className="text-[11px] text-ink-muted">{t.location}</div>}
               {items.length > 0 && (
-                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-ink">
+                <ul className="mt-1.5 list-disc space-y-px pl-4 text-[11px] leading-snug text-ink">
                   {items.map((it, i) => (
                     <li key={i}>{it}</li>
                   ))}
@@ -298,12 +297,12 @@ function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
                   href={t.menuUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-2 inline-block text-sm font-medium text-penn-blue hover:underline"
+                  className="mt-1.5 inline-block text-xs font-medium text-penn-blue hover:underline"
                 >
                   View menu ↗
                 </a>
               )}
-              {items.length === 0 && !t.menuUrl && <p className="mt-2 text-sm text-ink-muted">Menu coming soon.</p>}
+              {items.length === 0 && !t.menuUrl && <p className="mt-1.5 text-[11px] text-ink-muted">Menu coming soon.</p>}
             </div>
           );
         })}

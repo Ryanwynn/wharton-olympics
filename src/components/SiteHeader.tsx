@@ -23,13 +23,13 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
 
   return (
     <header className="border-b-2 border-penn-red bg-penn-blue text-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="group flex flex-col leading-none text-white no-underline">
+      <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
+        <Link href="/" className="group flex shrink-0 flex-col leading-none text-white no-underline">
           {/* Typographic wordmark only — no Wharton logo / Penn shield (§12.3). */}
           <span className="font-serif text-lg font-bold text-white sm:text-xl">Wharton Cluster Olympics</span>
         </Link>
 
-        <nav aria-label="Primary" className="flex items-center gap-1 text-sm">
+        <nav aria-label="Primary" className="flex flex-wrap items-center gap-1 text-sm sm:justify-end">
           {nav.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
             return (
@@ -37,7 +37,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-md px-2.5 py-2 no-underline transition-colors sm:px-3 ${
+                className={`whitespace-nowrap rounded-md px-2.5 py-2 no-underline transition-colors sm:px-3 ${
                   active ? "bg-white/20 font-semibold text-white" : "text-white/85 hover:bg-white/10 hover:text-white"
                 }`}
               >
@@ -51,7 +51,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
                 {user.displayName}
               </span>
               <form action="/api/auth/signout" method="post">
-                <button className="rounded-md px-2 py-1 text-white/85 hover:text-white hover:underline" type="submit">
+                <button className="whitespace-nowrap rounded-md px-2 py-1 text-white/85 hover:text-white hover:underline" type="submit">
                   Sign out
                 </button>
               </form>
@@ -59,7 +59,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
           ) : (
             <Link
               href="/signin"
-              className="ml-1 rounded-md bg-penn-red px-4 py-2 font-bold text-white no-underline shadow-sm ring-1 ring-white/25 transition-colors hover:bg-penn-red-hover sm:px-5"
+              className="ml-1 whitespace-nowrap rounded-md bg-penn-red px-4 py-2 font-bold text-white no-underline shadow-sm ring-1 ring-white/25 transition-colors hover:bg-penn-red-hover sm:px-5"
             >
               Sign in
             </Link>

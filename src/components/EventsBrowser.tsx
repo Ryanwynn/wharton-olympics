@@ -251,23 +251,27 @@ function EventCard({
   );
 }
 
-/** Remaining team slots across all clusters, from the per-cluster limit. */
-function teamSlotsRemaining(e: BrowseEvent, cohortCount: number): number {
-  const limit = e.maxTeamsPerCohort ?? 1;
-  const byCohort = new Map<string, number>();
-  for (const t of e.teams ?? []) if (t.cohortId) byCohort.set(t.cohortId, (byCohort.get(t.cohortId) ?? 0) + 1);
-  // Clusters with no team yet each contribute a full `limit`; the rest contribute what's left.
-  let remaining = (cohortCount - byCohort.size) * limit;
-  for (const [, count] of byCohort) remaining += Math.max(0, limit - count);
-  // Respect an overall capacity cap if the organizer set one.
-  if (e.capacity != null) remaining = Math.min(remaining, Math.max(0, e.capacity - e.registeredCount));
-  return Math.max(0, remaining);
+/** Player spots one cluster can still take: (teams per cluster × max team size) − its current players. */
+function clusterPlayerCapacity(e: BrowseEvent): number {
+  return (e.maxTeamsPerCohort ?? 1) * (e.maxTeamSize ?? 0);
+}
+function clusterPlayers(e: BrowseEvent): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const t of e.teams ?? []) if (t.cohortId) m.set(t.cohortId, (m.get(t.cohortId) ?? 0) + t.memberCount);
+  return m;
+}
+/** Total remaining player spots across every cluster. */
+function teamPlayerSpotsRemaining(e: BrowseEvent, cohortCount: number): number {
+  const cap = clusterPlayerCapacity(e);
+  let players = 0;
+  for (const [, n] of clusterPlayers(e)) players += n;
+  return Math.max(0, cap * cohortCount - players);
 }
 
 function SpotsBadge({ event: e, cohortCount }: { event: BrowseEvent; cohortCount: number }) {
   let left: number;
   if (e.entryType === "team") {
-    left = teamSlotsRemaining(e, cohortCount);
+    left = teamPlayerSpotsRemaining(e, cohortCount);
   } else {
     if (e.capacity == null) return <span className="text-xs text-ink-muted">No cap</span>;
     left = e.spotsRemaining ?? 0;
@@ -276,7 +280,7 @@ function SpotsBadge({ event: e, cohortCount }: { event: BrowseEvent; cohortCount
   return (
     <span className={`tabular shrink-0 text-right text-xs ${color}`}>
       <span className="block text-sm font-bold">{left}</span>
-      {e.entryType === "team" ? "team slots" : "spots"} left
+      spots left
     </span>
   );
 }
@@ -427,8 +431,8 @@ function TeamArea({
 
   return (
     <div className="space-y-3">
-      {/* The per-cluster breakdown only earns its space when a cluster can enter more than one team. */}
-      {limit > 1 && <ClusterTeamSummary event={e} cohorts={cohorts} viewerCohortId={cohortId} />}
+      {/* Open player spots per cluster — meaningful for every team event (a cluster's team can hold many players). */}
+      <ClusterTeamSummary event={e} cohorts={cohorts} viewerCohortId={cohortId} />
       {action}
     </div>
   );
@@ -444,26 +448,19 @@ function ClusterTeamSummary({
   cohorts: CohortOption[];
   viewerCohortId: string | null;
 }) {
-  const byCohort = new Map<string, { teams: number; players: number }>();
-  for (const t of e.teams ?? []) {
-    if (!t.cohortId) continue;
-    const cur = byCohort.get(t.cohortId) ?? { teams: 0, players: 0 };
-    cur.teams += 1;
-    cur.players += t.memberCount;
-    byCohort.set(t.cohortId, cur);
-  }
-  const limit = e.maxTeamsPerCohort ?? 1;
+  const players = clusterPlayers(e);
+  const capPer = clusterPlayerCapacity(e); // max players a cluster can hold for this event
 
   return (
     <div className="rounded-md border border-border bg-surface-alt/60 p-2.5">
       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-        Teams by cluster{limit > 1 ? ` · up to ${limit} each` : ""}
+        Open spots by cluster
       </p>
       <ul className="space-y-1">
         {cohorts.map((c) => {
-          const s = byCohort.get(c.id) ?? { teams: 0, players: 0 };
+          const inCluster = players.get(c.id) ?? 0;
+          const open = Math.max(0, capPer - inCluster);
           const mine = c.id === viewerCohortId;
-          const slotsLeft = Math.max(0, limit - s.teams);
           return (
             <li key={c.id} className="flex items-center gap-2 text-sm">
               <MascotIcon icon={c.iconKey} size={20} color={c.colorHex} />
@@ -472,11 +469,10 @@ function ClusterTeamSummary({
                 {mine && <span className="ml-1 text-[10px] font-semibold uppercase text-penn-blue">you</span>}
               </span>
               <span className="tabular shrink-0 text-xs text-ink-muted">
-                <span className={`font-semibold ${s.teams ? "text-ink" : ""}`}>{s.teams}</span>/{limit} teams
-                {" · "}
-                <span className={slotsLeft === 0 ? "font-semibold text-penn-red" : "font-semibold text-cohort-dragon"}>
-                  {slotsLeft === 0 ? "full" : `${slotsLeft} open`}
+                <span className={open === 0 ? "font-semibold text-penn-red" : "font-semibold text-cohort-dragon"}>
+                  {open === 0 ? "full" : `${open} open`}
                 </span>
+                {inCluster > 0 && <span className="text-ink-muted"> · {inCluster} in</span>}
               </span>
             </li>
           );

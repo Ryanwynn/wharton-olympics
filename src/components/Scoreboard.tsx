@@ -18,13 +18,15 @@ interface LiveData {
 const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric" });
 
 async function fetchLive(signal: AbortSignal): Promise<LiveData> {
-  const [s, sc, ft] = await Promise.all([
-    fetch("/api/standings", { signal }).then((r) => r.json()),
-    fetch("/api/schedule", { signal }).then((r) => r.json()),
-    fetch("/api/foodtrucks", { signal }).then((r) => r.json()),
-  ]);
-  const lastUpdated = [s.lastUpdated, sc.lastUpdated].sort().at(-1) as string;
-  return { standings: s.standings, schedule: sc.events, lastUpdated, foodTrucks: ft.trucks ?? [], notice: sc.notice ?? null };
+  // One combined, CDN-cached endpoint — keeps origin/Neon hits to a minimum.
+  const d = await fetch("/api/live", { signal }).then((r) => r.json());
+  return {
+    standings: d.standings,
+    schedule: d.events,
+    lastUpdated: d.lastUpdated,
+    foodTrucks: d.trucks ?? [],
+    notice: d.notice ?? null,
+  };
 }
 
 function fmtPoints(n: number): string {
@@ -33,8 +35,8 @@ function fmtPoints(n: number): string {
 
 export function Scoreboard({ initial }: { initial: LiveData }) {
   const { data, failed } = useLivePoll<LiveData>(fetchLive, initial, {
-    intervalMs: 15_000,
-    jitterMs: 3_000,
+    intervalMs: 30_000,
+    jitterMs: 5_000,
   });
   const { standings, schedule, lastUpdated, foodTrucks, notice } = data;
 

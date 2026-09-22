@@ -10,6 +10,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!bracket) return NextResponse.json({ error: "No bracket for this event." }, { status: 404 });
   return NextResponse.json(
     { bracket },
-    { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } }
+    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=90" } }
   );
 }

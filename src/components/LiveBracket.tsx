@@ -13,8 +13,8 @@ async function fetchBracket(eventId: string, signal: AbortSignal): Promise<Brack
 
 export function LiveBracket({ eventId, initial }: { eventId: string; initial: BracketView }) {
   const { data, isPolling } = useLivePoll<BracketView>((s) => fetchBracket(eventId, s), initial, {
-    intervalMs: 15_000,
-    jitterMs: 3_000,
+    intervalMs: 30_000,
+    jitterMs: 5_000,
   });
   return (
     <div className="space-y-4">

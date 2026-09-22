@@ -11,17 +11,23 @@ export interface WeatherSettings {
   body: string;
 }
 export async function getWeatherSettings(): Promise<WeatherSettings> {
-  const row = await queryOne<any>(
-    `SELECT weather_notice_enabled AS enabled, weather_notice_level AS level,
-            weather_notice_title AS title, weather_notice_body AS body
-       FROM seasons WHERE is_active LIMIT 1`
-  );
-  return {
-    enabled: Boolean(row?.enabled),
-    level: ["info", "warning", "danger"].includes(row?.level) ? row.level : "warning",
-    title: row?.title ?? "",
-    body: row?.body ?? "",
-  };
+  const fallback: WeatherSettings = { enabled: false, level: "warning", title: "", body: "" };
+  try {
+    const row = await queryOne<any>(
+      `SELECT weather_notice_enabled AS enabled, weather_notice_level AS level,
+              weather_notice_title AS title, weather_notice_body AS body
+         FROM seasons WHERE is_active LIMIT 1`
+    );
+    if (!row) return fallback;
+    return {
+      enabled: Boolean(row.enabled),
+      level: ["info", "warning", "danger"].includes(row.level) ? row.level : "warning",
+      title: row.title ?? "",
+      body: row.body ?? "",
+    };
+  } catch {
+    return fallback; // columns not migrated yet — keep the admin console working
+  }
 }
 
 // ── Admin: food trucks (includes inactive) ──────────────────────────────────────

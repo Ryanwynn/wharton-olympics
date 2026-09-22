@@ -3,6 +3,27 @@ import { publicName } from "./format";
 import { rangesOverlap } from "./time";
 import type { IconKey, FoodTruck } from "./types";
 
+// ── Admin: weather notice settings ──────────────────────────────────────────────
+export interface WeatherSettings {
+  enabled: boolean;
+  level: "info" | "warning" | "danger";
+  title: string;
+  body: string;
+}
+export async function getWeatherSettings(): Promise<WeatherSettings> {
+  const row = await queryOne<any>(
+    `SELECT weather_notice_enabled AS enabled, weather_notice_level AS level,
+            weather_notice_title AS title, weather_notice_body AS body
+       FROM seasons WHERE is_active LIMIT 1`
+  );
+  return {
+    enabled: Boolean(row?.enabled),
+    level: ["info", "warning", "danger"].includes(row?.level) ? row.level : "warning",
+    title: row?.title ?? "",
+    body: row?.body ?? "",
+  };
+}
+
 // ── Admin: food trucks (includes inactive) ──────────────────────────────────────
 export async function listAdminFoodTrucks(): Promise<FoodTruck[]> {
   const rows = await query<any>(

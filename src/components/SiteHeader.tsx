@@ -14,7 +14,8 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
   if (pathname?.startsWith("/score/")) return null;
 
   const nav = [
-    { href: "/", label: "Schedule" },
+    { href: "/", label: "Live Schedule and Events" },
+    { href: "/full-schedule", label: "Full Day Schedule" },
     { href: "/events", label: "Event Sign Up" },
     ...(user ? [{ href: "/me", label: "My events" }] : []),
     ...(user?.isAdmin ? [{ href: "/admin", label: "Admin" }] : []),

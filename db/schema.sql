@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS seasons (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name          text NOT NULL,
   is_active     boolean NOT NULL DEFAULT false,
+  -- Optional weather notice shown prominently on the public landing page.
+  weather_notice_enabled boolean NOT NULL DEFAULT false,
+  weather_notice_level    text,                    -- 'info' | 'warning' | 'danger'
+  weather_notice_title    text,
+  weather_notice_body     text,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_season ON seasons (is_active) WHERE is_active;

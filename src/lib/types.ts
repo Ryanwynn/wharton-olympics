@@ -14,6 +14,12 @@ export interface StandingRow {
   rank: number;
 }
 
+export interface WeatherNotice {
+  level: "info" | "warning" | "danger";
+  title: string | null;
+  body: string;
+}
+
 export interface FoodTruck {
   id: string;
   name: string;

@@ -57,21 +57,31 @@ const TAB_LABELS: Record<string, string> = {
   events: "Events",
   people: "People",
   foodtrucks: "Food trucks",
+  weather: "Weather",
   audit: "Audit",
 };
+
+export interface WeatherSettings {
+  enabled: boolean;
+  level: "info" | "warning" | "danger";
+  title: string;
+  body: string;
+}
 
 export function AdminConsole({
   initialEvents,
   cohorts,
   initialAudit,
   initialFoodTrucks,
+  initialWeather,
 }: {
   initialEvents: AdminEvent[];
   cohorts: CohortOption[];
   initialAudit: AuditEntry[];
   initialFoodTrucks: FoodTruck[];
+  initialWeather: WeatherSettings;
 }) {
-  const [tab, setTab] = useState<"events" | "people" | "foodtrucks" | "audit">("events");
+  const [tab, setTab] = useState<"events" | "people" | "foodtrucks" | "weather" | "audit">("events");
   return (
     <div className="space-y-4">
       <div>
@@ -79,7 +89,7 @@ export function AdminConsole({
         <p className="text-sm text-ink-muted">Create events, manage rosters, score, and grant roles.</p>
       </div>
       <div role="tablist" className="flex gap-1 border-b border-border">
-        {(["events", "people", "foodtrucks", "audit"] as const).map((t) => (
+        {(["events", "people", "foodtrucks", "weather", "audit"] as const).map((t) => (
           <button
             key={t}
             role="tab"
@@ -96,6 +106,7 @@ export function AdminConsole({
       {tab === "events" && <EventsTab events={initialEvents} cohorts={cohorts} />}
       {tab === "people" && <PeopleTab events={initialEvents} />}
       {tab === "foodtrucks" && <FoodTrucksTab initial={initialFoodTrucks} />}
+      {tab === "weather" && <WeatherTab initial={initialWeather} />}
       {tab === "audit" && <AuditTab initial={initialAudit} />}
     </div>
   );
@@ -485,6 +496,95 @@ function RosterPanel({ event }: { event: AdminEvent }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// ── Weather notice tab ──────────────────────────────────────────────────────────
+function WeatherTab({ initial }: { initial: WeatherSettings }) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(initial.enabled);
+  const [level, setLevel] = useState<WeatherSettings["level"]>(initial.level);
+  const [title, setTitle] = useState(initial.title);
+  const [body, setBody] = useState(initial.body);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api("/api/admin/weather", { method: "PATCH", body: JSON.stringify({ enabled, level, title, body }) });
+      setSaved(true);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const input = "mt-0.5 w-full rounded-md border border-border px-2.5 py-2 text-sm";
+  const levelStyles: Record<WeatherSettings["level"], string> = {
+    info: "border-penn-blue/30 bg-penn-blue-tint text-penn-blue",
+    warning: "border-amber-400 bg-amber-50 text-amber-900",
+    danger: "border-penn-red bg-penn-red/10 text-penn-red",
+  };
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-ink">Weather notice</h2>
+        <p className="text-sm text-ink-muted">
+          When enabled, a prominent banner appears at the top of the landing page (Schedule). Use it to announce
+          weather-related delays or warnings. It updates on the live board within seconds.
+        </p>
+      </div>
+      {error && <p role="alert" className="rounded-md bg-penn-red/5 px-3 py-2 text-sm text-penn-red">{error}</p>}
+
+      <label className="flex items-center gap-2 text-sm font-medium text-ink">
+        <input type="checkbox" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); setSaved(false); }} />
+        Show the weather notice on the landing page
+      </label>
+
+      <label className="block text-xs font-medium text-ink-muted">
+        Severity
+        <select className={input} value={level} onChange={(e) => { setLevel(e.target.value as WeatherSettings["level"]); setSaved(false); }}>
+          <option value="info">Info (blue)</option>
+          <option value="warning">Warning (amber)</option>
+          <option value="danger">Alert (red)</option>
+        </select>
+      </label>
+
+      <label className="block text-xs font-medium text-ink-muted">
+        Headline
+        <input className={input} maxLength={120} placeholder="e.g. Lightning delay" value={title} onChange={(e) => { setTitle(e.target.value); setSaved(false); }} />
+      </label>
+
+      <label className="block text-xs font-medium text-ink-muted">
+        Message
+        <textarea className={`${input} min-h-[96px]`} maxLength={1000} placeholder="e.g. All outdoor events are paused until 12:30 PM. Please move indoors to Pottruck and await further updates." value={body} onChange={(e) => { setBody(e.target.value); setSaved(false); }} />
+      </label>
+
+      <div>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Preview</p>
+        <div className={`rounded-xl border-2 p-4 ${levelStyles[level]}`}>
+          <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">
+            {level === "danger" ? "Weather alert" : level === "warning" ? "Weather advisory" : "Notice"}
+          </p>
+          <h3 className="mt-0.5 font-serif text-lg font-bold">{title || "Weather update"}</h3>
+          <p className="mt-1 whitespace-pre-line text-sm">{body || "Your message will appear here."}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={busy} className="rounded-md bg-penn-blue px-4 py-2 text-sm font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60">
+          {busy ? "Saving…" : "Save notice"}
+        </button>
+        {saved && <span className="text-sm font-medium text-cohort-dragon">Saved ✓</span>}
+      </div>
     </div>
   );
 }

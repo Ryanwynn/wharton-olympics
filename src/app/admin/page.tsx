@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getOptionalUser } from "@/lib/auth";
-import { listAdminEvents, getAuditLog, listAdminFoodTrucks } from "@/lib/adminQueries";
+import { listAdminEvents, getAuditLog, listAdminFoodTrucks, getWeatherSettings } from "@/lib/adminQueries";
 import { getCohorts } from "@/lib/queries";
 import { AdminConsole } from "@/components/AdminConsole";
 
@@ -20,11 +20,20 @@ export default async function AdminPage() {
       </div>
     );
   }
-  const [events, cohorts, audit, foodTrucks] = await Promise.all([
+  const [events, cohorts, audit, foodTrucks, weather] = await Promise.all([
     listAdminEvents(),
     getCohorts(),
     getAuditLog(),
     listAdminFoodTrucks(),
+    getWeatherSettings(),
   ]);
-  return <AdminConsole initialEvents={events} cohorts={cohorts} initialAudit={audit} initialFoodTrucks={foodTrucks} />;
+  return (
+    <AdminConsole
+      initialEvents={events}
+      cohorts={cohorts}
+      initialAudit={audit}
+      initialFoodTrucks={foodTrucks}
+      initialWeather={weather}
+    />
+  );
 }

@@ -12,9 +12,10 @@ import type {
   ViewerTeam,
   AgendaItem,
   FoodTruck,
+  WeatherNotice,
 } from "./types";
 
-export type { StandingRow, ScheduleEvent, EventResultRow, EventDetail, FoodTruck } from "./types";
+export type { StandingRow, ScheduleEvent, EventResultRow, EventDetail, FoodTruck, WeatherNotice } from "./types";
 
 // ── Standings (§4, §7) ─────────────────────────────────────────────────────────
 // SUM(points) GROUP BY cohort over scores whose event is `complete`. Plain indexed
@@ -414,6 +415,20 @@ export async function getFoodTrucks(): Promise<FoodTruck[]> {
       ORDER BY sort_order ASC, name ASC`
   );
   return rows.map(mapFoodTruck);
+}
+
+/** Weather notice for the public landing page, or null when it's turned off. */
+export async function getWeatherNotice(): Promise<WeatherNotice | null> {
+  const row = await queryOne<any>(
+    `SELECT weather_notice_enabled AS enabled, weather_notice_level AS level,
+            weather_notice_title AS title, weather_notice_body AS body
+       FROM seasons WHERE is_active LIMIT 1`
+  );
+  if (!row || !row.enabled) return null;
+  const body = (row.body ?? "").trim();
+  if (!body) return null;
+  const level = ["info", "warning", "danger"].includes(row.level) ? row.level : "warning";
+  return { level, title: row.title?.trim() || null, body };
 }
 
 /** Freshness stamp for the public surface (§6.1). */

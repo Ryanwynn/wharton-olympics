@@ -5,13 +5,14 @@ import { MascotIcon } from "./MascotIcon";
 import { useLivePoll } from "./useLivePoll";
 import { fmtTime } from "@/lib/time";
 import { statusLabel } from "@/lib/format";
-import type { StandingRow, ScheduleEvent, EventResultRow, FoodTruck } from "@/lib/types";
+import type { StandingRow, ScheduleEvent, EventResultRow, FoodTruck, WeatherNotice } from "@/lib/types";
 
 interface LiveData {
   standings: StandingRow[];
   schedule: ScheduleEvent[];
   lastUpdated: string;
   foodTrucks: FoodTruck[];
+  notice: WeatherNotice | null;
 }
 
 const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric" });
@@ -23,7 +24,7 @@ async function fetchLive(signal: AbortSignal): Promise<LiveData> {
     fetch("/api/foodtrucks", { signal }).then((r) => r.json()),
   ]);
   const lastUpdated = [s.lastUpdated, sc.lastUpdated].sort().at(-1) as string;
-  return { standings: s.standings, schedule: sc.events, lastUpdated, foodTrucks: ft.trucks ?? [] };
+  return { standings: s.standings, schedule: sc.events, lastUpdated, foodTrucks: ft.trucks ?? [], notice: sc.notice ?? null };
 }
 
 function fmtPoints(n: number): string {
@@ -35,7 +36,7 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
     intervalMs: 15_000,
     jitterMs: 3_000,
   });
-  const { standings, schedule, lastUpdated, foodTrucks } = data;
+  const { standings, schedule, lastUpdated, foodTrucks, notice } = data;
 
   // ── movement + pulse since last update ──────────────────────────────────────
   const prevPoints = useRef<Map<string, number>>(new Map(initial.standings.map((r) => [r.cohortId, r.points])));
@@ -76,6 +77,8 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
         {announce}
       </div>
 
+      {notice && <WeatherBanner notice={notice} />}
+
       <section aria-labelledby="standings-heading">
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
@@ -95,6 +98,30 @@ export function Scoreboard({ initial }: { initial: LiveData }) {
 
       {foodTrucks.length > 0 && <FoodTrucksSection trucks={foodTrucks} />}
     </div>
+  );
+}
+
+// ── Weather notice (admin-toggled, prominent on the landing page) ──────────────
+function WeatherBanner({ notice }: { notice: WeatherNotice }) {
+  const styles: Record<WeatherNotice["level"], { box: string; icon: string; label: string }> = {
+    info: { box: "border-penn-blue/30 bg-penn-blue-tint text-penn-blue", icon: "ℹ️", label: "Notice" },
+    warning: { box: "border-amber-400 bg-amber-50 text-amber-900", icon: "⚠️", label: "Weather advisory" },
+    danger: { box: "border-penn-red bg-penn-red/10 text-penn-red", icon: "⛔", label: "Weather alert" },
+  };
+  const s = styles[notice.level];
+  return (
+    <section aria-label="Weather notice" role="alert" className={`rounded-xl border-2 p-5 shadow-sm sm:p-6 ${s.box}`}>
+      <div className="flex items-start gap-3 sm:gap-4">
+        <span className="text-2xl sm:text-3xl" aria-hidden>
+          {s.icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">{s.label}</p>
+          <h2 className="mt-0.5 font-serif text-xl font-bold sm:text-2xl">{notice.title ?? "Weather update"}</h2>
+          <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed sm:text-base">{notice.body}</p>
+        </div>
+      </div>
+    </section>
   );
 }
 

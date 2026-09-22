@@ -163,7 +163,7 @@ function EventCard({
             )}
           </div>
         </div>
-        <SpotsBadge event={e} />
+        <SpotsBadge event={e} cohortCount={cohorts.length} />
       </div>
 
       {e.description && <p className="mt-2 text-sm text-ink-muted">{e.description}</p>}
@@ -251,9 +251,27 @@ function EventCard({
   );
 }
 
-function SpotsBadge({ event: e }: { event: BrowseEvent }) {
-  if (e.capacity == null) return <span className="text-xs text-ink-muted">No cap</span>;
-  const left = e.spotsRemaining ?? 0;
+/** Remaining team slots across all clusters, from the per-cluster limit. */
+function teamSlotsRemaining(e: BrowseEvent, cohortCount: number): number {
+  const limit = e.maxTeamsPerCohort ?? 1;
+  const byCohort = new Map<string, number>();
+  for (const t of e.teams ?? []) if (t.cohortId) byCohort.set(t.cohortId, (byCohort.get(t.cohortId) ?? 0) + 1);
+  // Clusters with no team yet each contribute a full `limit`; the rest contribute what's left.
+  let remaining = (cohortCount - byCohort.size) * limit;
+  for (const [, count] of byCohort) remaining += Math.max(0, limit - count);
+  // Respect an overall capacity cap if the organizer set one.
+  if (e.capacity != null) remaining = Math.min(remaining, Math.max(0, e.capacity - e.registeredCount));
+  return Math.max(0, remaining);
+}
+
+function SpotsBadge({ event: e, cohortCount }: { event: BrowseEvent; cohortCount: number }) {
+  let left: number;
+  if (e.entryType === "team") {
+    left = teamSlotsRemaining(e, cohortCount);
+  } else {
+    if (e.capacity == null) return <span className="text-xs text-ink-muted">No cap</span>;
+    left = e.spotsRemaining ?? 0;
+  }
   const color = left === 0 ? "text-penn-red" : left <= 5 ? "text-amber-700" : "text-ink-muted";
   return (
     <span className={`tabular shrink-0 text-right text-xs ${color}`}>
@@ -445,6 +463,7 @@ function ClusterTeamSummary({
         {cohorts.map((c) => {
           const s = byCohort.get(c.id) ?? { teams: 0, players: 0 };
           const mine = c.id === viewerCohortId;
+          const slotsLeft = Math.max(0, limit - s.teams);
           return (
             <li key={c.id} className="flex items-center gap-2 text-sm">
               <MascotIcon icon={c.iconKey} size={20} color={c.colorHex} />
@@ -453,8 +472,11 @@ function ClusterTeamSummary({
                 {mine && <span className="ml-1 text-[10px] font-semibold uppercase text-penn-blue">you</span>}
               </span>
               <span className="tabular shrink-0 text-xs text-ink-muted">
-                <span className={`font-semibold ${s.teams ? "text-ink" : ""}`}>{s.teams}</span> {s.teams === 1 ? "team" : "teams"}
-                {s.players > 0 && ` · ${s.players} ${s.players === 1 ? "player" : "players"}`}
+                <span className={`font-semibold ${s.teams ? "text-ink" : ""}`}>{s.teams}</span>/{limit} teams
+                {" · "}
+                <span className={slotsLeft === 0 ? "font-semibold text-penn-red" : "font-semibold text-cohort-dragon"}>
+                  {slotsLeft === 0 ? "full" : `${slotsLeft} open`}
+                </span>
               </span>
             </li>
           );

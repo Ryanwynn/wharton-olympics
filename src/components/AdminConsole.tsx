@@ -480,17 +480,25 @@ function RosterPanel({ event }: { event: AdminEvent }) {
       {!data ? (
         <p className="text-sm text-ink-muted">Loading roster…</p>
       ) : data.entries.length === 0 ? (
-        <p className="text-sm text-ink-muted">No registrations yet.</p>
+        <p className="text-sm text-ink-muted">No one has signed up yet.</p>
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface text-sm">
           {data.entries.map((e) => (
-            <li key={e.registrationId} className="flex items-center justify-between gap-2 px-3 py-1.5">
-              <span className="flex items-center gap-2">
-                <span className="text-ink">{e.label}</span>
-                {e.status === "waitlisted" && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">waitlist #{e.waitlistPos}</span>}
-              </span>
+            <li key={e.registrationId} className="flex items-start justify-between gap-2 px-3 py-2">
+              <div className="min-w-0">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink">{e.label}</span>
+                  {e.cohortName && <span className="text-xs text-ink-muted">{e.cohortName}</span>}
+                  {e.status === "waitlisted" && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">waitlist #{e.waitlistPos}</span>}
+                  {e.status === "forming" && <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted">forming</span>}
+                  {e.kind === "team" && <span className="text-xs text-ink-muted">· {e.members.length} {e.members.length === 1 ? "player" : "players"}</span>}
+                </span>
+                {e.kind === "team" && e.members.length > 0 && (
+                  <p className="mt-0.5 text-xs text-ink-muted">{e.members.join(", ")}</p>
+                )}
+              </div>
               {e.status === "waitlisted" && (
-                <button onClick={() => promote(e.registrationId)} className="rounded border border-border px-2 py-0.5 text-xs text-penn-blue hover:bg-surface-alt">Promote</button>
+                <button onClick={() => promote(e.registrationId)} className="shrink-0 rounded border border-border px-2 py-0.5 text-xs text-penn-blue hover:bg-surface-alt">Promote</button>
               )}
             </li>
           ))}

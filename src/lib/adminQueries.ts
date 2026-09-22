@@ -159,54 +159,98 @@ export interface RosterEntry {
   registrationId: string;
   kind: "user" | "team";
   label: string;
-  status: string;
+  status: string; // registered | waitlisted | forming
   waitlistPos: number | null;
   userId: string | null;
   teamId: string | null;
+  members: string[]; // team members' names (empty for individual entries)
+  cohortName: string | null;
   conflict: { name: string } | null;
 }
 
 export async function getRoster(eventId: string): Promise<{ eventName: string; entries: RosterEntry[] }> {
-  const ev = await queryOne<any>(`SELECT name, starts_at, ends_at FROM events WHERE id = $1`, [eventId]);
+  const ev = await queryOne<any>(`SELECT name, entry_type, starts_at, ends_at FROM events WHERE id = $1`, [eventId]);
   if (!ev) return { eventName: "", entries: [] };
 
+  const entries: RosterEntry[] = [];
+
+  if (ev.entry_type === "team") {
+    // Show EVERY team that isn't withdrawn — including 'forming' ones that haven't
+    // reached min size yet (those have no registration row), so admins can see who
+    // has joined. Each team carries its members and its effective status.
+    const teamRows = await query<any>(
+      `SELECT t.id, t.name, t.status AS team_status, c.name AS cohort_name,
+              r.status AS reg_status, r.waitlist_pos, t.created_at
+         FROM teams t
+         LEFT JOIN cohorts c ON c.id = t.cohort_id
+         LEFT JOIN registrations r ON r.team_id = t.id AND r.status <> 'withdrawn'
+        WHERE t.event_id = $1 AND t.status <> 'withdrawn'
+        ORDER BY (r.status = 'registered') DESC, r.waitlist_pos ASC NULLS LAST, t.created_at ASC`,
+      [eventId]
+    );
+    const memberRows = await query<any>(
+      `SELECT tm.team_id, u.display_name
+         FROM team_members tm JOIN users u ON u.id = tm.user_id
+        WHERE tm.event_id = $1
+        ORDER BY u.display_name ASC`,
+      [eventId]
+    );
+    const membersByTeam = new Map<string, string[]>();
+    for (const m of memberRows) {
+      const list = membersByTeam.get(m.team_id) ?? [];
+      list.push(m.display_name);
+      membersByTeam.set(m.team_id, list);
+    }
+    for (const t of teamRows) {
+      entries.push({
+        registrationId: t.id, // teams may have no registration row while forming
+        kind: "team",
+        label: t.name,
+        status: t.reg_status ?? t.team_status, // registered/waitlisted, else 'forming'
+        waitlistPos: t.waitlist_pos,
+        userId: null,
+        teamId: t.id,
+        members: membersByTeam.get(t.id) ?? [],
+        cohortName: t.cohort_name ?? null,
+        conflict: null,
+      });
+    }
+    return { eventName: ev.name, entries };
+  }
+
+  // Individual events: registration-per-person, with overlap conflict flags.
   const rows = await query<any>(
-    `SELECT r.id, r.status, r.waitlist_pos, r.user_id, r.team_id,
-            u.display_name AS user_name, t.name AS team_name
+    `SELECT r.id, r.status, r.waitlist_pos, r.user_id, u.display_name AS user_name
        FROM registrations r
-       LEFT JOIN users u ON u.id = r.user_id
-       LEFT JOIN teams t ON t.id = r.team_id
+       JOIN users u ON u.id = r.user_id
       WHERE r.event_id = $1 AND r.status <> 'withdrawn'
       ORDER BY (r.status = 'registered') DESC, r.waitlist_pos ASC NULLS LAST, r.created_at ASC`,
     [eventId]
   );
-
-  // Conflict detection for individual entrants: another active registration overlapping.
-  const entries: RosterEntry[] = [];
   for (const r of rows) {
     let conflict: { name: string } | null = null;
-    if (r.user_id) {
-      const others = await query<any>(
-        `SELECT e.name, e.starts_at, e.ends_at
-           FROM registrations rr JOIN events e ON e.id = rr.event_id
-          WHERE rr.user_id = $1 AND rr.status <> 'withdrawn' AND e.id <> $2`,
-        [r.user_id, eventId]
-      );
-      for (const o of others) {
-        if (rangesOverlap(ev.starts_at, ev.ends_at, o.starts_at, o.ends_at)) {
-          conflict = { name: o.name };
-          break;
-        }
+    const others = await query<any>(
+      `SELECT e.name, e.starts_at, e.ends_at
+         FROM registrations rr JOIN events e ON e.id = rr.event_id
+        WHERE rr.user_id = $1 AND rr.status <> 'withdrawn' AND e.id <> $2`,
+      [r.user_id, eventId]
+    );
+    for (const o of others) {
+      if (rangesOverlap(ev.starts_at, ev.ends_at, o.starts_at, o.ends_at)) {
+        conflict = { name: o.name };
+        break;
       }
     }
     entries.push({
       registrationId: r.id,
-      kind: r.team_id ? "team" : "user",
-      label: r.team_name ? r.team_name : r.user_name ?? "—",
+      kind: "user",
+      label: r.user_name ?? "—",
       status: r.status,
       waitlistPos: r.waitlist_pos,
       userId: r.user_id,
-      teamId: r.team_id,
+      teamId: null,
+      members: [],
+      cohortName: null,
       conflict,
     });
   }
@@ -215,10 +259,18 @@ export async function getRoster(eventId: string): Promise<{ eventName: string; e
 
 export async function getRosterCsv(eventId: string): Promise<string> {
   const { entries } = await getRoster(eventId);
-  const header = ["entrant", "kind", "status", "waitlist_pos", "conflict"];
+  const header = ["entrant", "kind", "status", "waitlist_pos", "cluster", "members", "conflict"];
   const lines = [header.join(",")];
   for (const e of entries) {
-    const cells = [e.label, e.kind, e.status, e.waitlistPos ?? "", e.conflict ? e.conflict.name : ""];
+    const cells = [
+      e.label,
+      e.kind,
+      e.status,
+      e.waitlistPos ?? "",
+      e.cohortName ?? "",
+      e.members.join("; "),
+      e.conflict ? e.conflict.name : "",
+    ];
     lines.push(cells.map(csvCell).join(","));
   }
   return lines.join("\r\n");

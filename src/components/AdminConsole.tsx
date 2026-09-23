@@ -23,6 +23,7 @@ export interface AdminEvent {
   maxTeamsPerCohort: number | null;
   mapUrl: string | null;
   autoGoLive: boolean;
+  hideFromSignup: boolean;
   championshipLocation: string | null;
   championshipMapUrl: string | null;
   championshipStartsAt: string | null;
@@ -162,6 +163,15 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
       setError((e as Error).message);
     }
   }
+  async function toggleSignup(ev: AdminEvent) {
+    setError(null);
+    try {
+      await api(`/api/admin/events/${ev.id}`, { method: "PATCH", body: JSON.stringify({ hide_from_signup: !ev.hideFromSignup }) });
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -204,6 +214,9 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                     {ev.status === "published" && !effLive && (
                       <div className="mt-0.5 text-[10px] text-ink-muted">{ev.autoGoLive ? "auto-live at start" : "manual (auto off)"}</div>
                     )}
+                    {ev.hideFromSignup && (
+                      <div className="mt-0.5 text-[10px] font-semibold uppercase text-amber-700">hidden from sign-up</div>
+                    )}
                   </td>
                   <td className="tabular px-3 py-2 text-right">
                     {ev.participants}/{ev.participantsCap ?? "∞"}
@@ -232,6 +245,9 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                           End live
                         </button>
                       )}
+                      <button onClick={() => toggleSignup(ev)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt" title="Show or hide this event on the public Event Sign Up page">
+                        {ev.hideFromSignup ? "Show sign-up" : "Hide sign-up"}
+                      </button>
                       {/* Draft and published events are editable. */}
                       {(ev.status === "draft" || ev.status === "published") && (
                         <button onClick={() => setEditingId(editingId === ev.id ? null : ev.id)} className="rounded border border-border px-2 py-1 text-xs hover:bg-surface-alt">
@@ -296,7 +312,7 @@ function StatusTag({ status }: { status: string }) {
 
 function initialForm(event?: AdminEvent) {
   if (!event) {
-    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, max_teams_per_cohort: 1, auto_go_live: true, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
+    return { entry_type: "individual", waitlist_enabled: true, capacity: 24, min_team_size: 3, max_team_size: 5, max_teams_per_cohort: 1, auto_go_live: true, hide_from_signup: false, p1: 15, p2: 10, p3: 6, pp: 2 } as any;
   }
   const ps = event.pointsSchema ?? {};
   return {
@@ -312,6 +328,7 @@ function initialForm(event?: AdminEvent) {
     location_note: event.locationNote ?? "",
     map_url: event.mapUrl ?? "",
     auto_go_live: event.autoGoLive ?? true,
+    hide_from_signup: event.hideFromSignup ?? false,
     championship_location: event.championshipLocation ?? "",
     championship_map_url: event.championshipMapUrl ?? "",
     championship_starts_at: toDatetimeLocal(event.championshipStartsAt),
@@ -346,6 +363,7 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         location_note: f.location_note || null,
         map_url: f.map_url || null,
         auto_go_live: f.auto_go_live !== false,
+        hide_from_signup: f.hide_from_signup === true,
         championship_location: f.championship_location || null,
         championship_map_url: f.championship_map_url || null,
         championship_starts_at: f.championship_starts_at ? new Date(f.championship_starts_at).toISOString() : null,
@@ -415,6 +433,14 @@ function EventForm({ event, onDone }: { event?: AdminEvent; onDone: () => void }
         <span>
           Automatically go live at start time
           <span className="block text-xs font-normal text-ink-muted/80">Once the start time passes, the event shows as live on its own. Uncheck to keep it manual (e.g. a delay); you can still use the Go live / End live buttons.</span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" className="mt-0.5" checked={f.hide_from_signup === true} onChange={(e) => set("hide_from_signup", e.target.checked)} />
+        <span>
+          Hide from the sign-up page
+          <span className="block text-xs font-normal text-ink-muted/80">Use when sign-ups are collected offline. The event still appears on the schedule and can be scored — it just won&rsquo;t show on Event Sign Up.</span>
         </span>
       </label>
 

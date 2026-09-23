@@ -46,10 +46,10 @@ export const POST = route(async (req: Request) => {
   const ev = await queryOne<any>(
     `INSERT INTO events (season_id, slug, name, description, entry_type, min_team_size, max_team_size,
        max_teams_per_cohort, capacity, waitlist_enabled, signup_opens_at, signup_closes_at, starts_at, ends_at,
-       location, location_note, map_url, auto_go_live,
+       location, location_note, map_url, auto_go_live, hide_from_signup,
        championship_location, championship_map_url, championship_starts_at, championship_ends_at,
        points_schema, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,'draft') RETURNING id, slug`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,'draft') RETURNING id, slug`,
     [
       season.id, slug, b.name, b.description ?? null, b.entry_type,
       b.entry_type === "team" ? b.min_team_size : null,
@@ -58,6 +58,7 @@ export const POST = route(async (req: Request) => {
       b.capacity ?? null, b.waitlist_enabled ?? true,
       b.signup_opens_at ?? null, b.signup_closes_at ?? null, b.starts_at ?? null, b.ends_at ?? null,
       b.location ?? null, b.location_note ?? null, mapUrl, b.auto_go_live === false ? false : true,
+      b.hide_from_signup === true,
       b.championship_location ?? null, normalizeUrl(b.championship_map_url),
       b.championship_starts_at ?? null, b.championship_ends_at ?? null,
       b.points_schema ? JSON.stringify(b.points_schema) : null,

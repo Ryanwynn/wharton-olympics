@@ -24,6 +24,7 @@ const EDITABLE: Record<string, string> = {
   location_note: "text",
   map_url: "url",
   auto_go_live: "bool",
+  hide_from_signup: "bool",
   championship_location: "text",
   championship_map_url: "url",
   championship_starts_at: "ts",

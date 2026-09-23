@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS events (
   championship_ends_at    timestamptz,
   status           event_status NOT NULL DEFAULT 'draft',
   auto_go_live     boolean NOT NULL DEFAULT true,   -- when true, a published event shows as live once starts_at passes
+  hide_from_signup boolean NOT NULL DEFAULT false,  -- hide from the public sign-up page (e.g. signups collected offline)
   points_schema    jsonb,
   live_score       text,                           -- free-text running score while in_progress (§ live score)
   has_bracket      boolean NOT NULL DEFAULT false,  -- true once a bracket is generated

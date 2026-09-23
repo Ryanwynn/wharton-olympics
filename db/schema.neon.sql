@@ -92,6 +92,7 @@ CREATE TABLE events (
   championship_ends_at    timestamptz,
   status           event_status NOT NULL DEFAULT 'draft',
   auto_go_live     boolean NOT NULL DEFAULT true,
+  hide_from_signup boolean NOT NULL DEFAULT false,
   points_schema    jsonb,
   live_score       text,
   has_bracket      boolean NOT NULL DEFAULT false,

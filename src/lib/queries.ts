@@ -219,6 +219,7 @@ export async function getBrowseEvents(userId: string | null): Promise<BrowseEven
        FROM events e
       WHERE e.season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)
         AND e.status <> 'draft'
+        AND NOT e.hide_from_signup
       ORDER BY e.starts_at ASC NULLS LAST, e.sort_order ASC`
   );
 

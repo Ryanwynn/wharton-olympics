@@ -36,6 +36,8 @@ export interface AdminEvent {
   pointsSchema: Record<string, number> | null;
   registered: number;
   waitlisted: number;
+  participants: number;
+  participantsCap: number | null;
 }
 export interface AuditEntry {
   id: string;
@@ -203,7 +205,10 @@ function EventsTab({ events, cohorts }: { events: AdminEvent[]; cohorts: CohortO
                       <div className="mt-0.5 text-[10px] text-ink-muted">{ev.autoGoLive ? "auto-live at start" : "manual (auto off)"}</div>
                     )}
                   </td>
-                  <td className="tabular px-3 py-2 text-right">{ev.registered}/{ev.capacity ?? "∞"}</td>
+                  <td className="tabular px-3 py-2 text-right">
+                    {ev.participants}/{ev.participantsCap ?? "∞"}
+                    {ev.entryType === "team" && <span className="ml-1 text-[10px] text-ink-muted">players</span>}
+                  </td>
                   <td className="tabular px-3 py-2 text-right">{ev.waitlisted}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-1.5">

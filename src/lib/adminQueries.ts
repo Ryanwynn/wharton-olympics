@@ -119,7 +119,10 @@ export async function listAdminEvents() {
             e.auto_go_live, e.championship_location, e.championship_map_url, e.championship_starts_at, e.championship_ends_at,
             e.signup_opens_at, e.signup_closes_at, e.points_schema,
             (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'registered')::int AS registered,
-            (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'waitlisted')::int AS waitlisted
+            (SELECT count(*) FROM registrations r WHERE r.event_id = e.id AND r.status = 'waitlisted')::int AS waitlisted,
+            (SELECT count(*) FROM team_members tm JOIN teams t2 ON t2.id = tm.team_id
+              WHERE tm.event_id = e.id AND t2.status <> 'withdrawn')::int AS player_count,
+            (SELECT count(*) FROM cohorts c WHERE c.season_id = e.season_id)::int AS cohort_count
        FROM events e
       WHERE e.season_id = (SELECT id FROM seasons WHERE is_active LIMIT 1)
       ORDER BY e.starts_at ASC NULLS LAST, e.sort_order ASC`
@@ -151,6 +154,15 @@ export async function listAdminEvents() {
     pointsSchema: e.points_schema ?? null,
     registered: Number(e.registered),
     waitlisted: Number(e.waitlisted),
+    // Participants shown in the admin list: players for team events (counts everyone
+    // on a non-withdrawn team, including still-forming ones), registrations otherwise.
+    participants: e.entry_type === "team" ? Number(e.player_count) : Number(e.registered),
+    participantsCap:
+      e.entry_type === "team"
+        ? e.max_team_size != null
+          ? (e.max_teams_per_cohort ?? 1) * e.max_team_size * Number(e.cohort_count)
+          : null
+        : e.capacity,
   }));
 }
 

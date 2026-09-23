@@ -12,7 +12,7 @@ export function SiteFooter() {
           <Link href="/privacy" className="text-white/85 hover:text-white">
             Privacy note
           </Link>
-          <a href="mailto:olympics@wharton.upenn.edu" className="text-white/85 hover:text-white">
+          <a href="mailto:daegray@wharton.upenn.edu,imanibr@wharton.upenn.edu" className="text-white/85 hover:text-white">
             Contact organizers
           </a>
         </div>

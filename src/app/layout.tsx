@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Source_Serif_4, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getOptionalUser } from "@/lib/auth";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -46,6 +48,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

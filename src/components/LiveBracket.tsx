@@ -1,7 +1,9 @@
 "use client";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useLivePoll } from "./useLivePoll";
 import { BracketBoard } from "./BracketBoard";
+import { track } from "@/lib/analytics";
 import type { BracketView } from "@/lib/types";
 
 async function fetchBracket(eventId: string, signal: AbortSignal): Promise<BracketView> {
@@ -16,6 +18,9 @@ export function LiveBracket({ eventId, initial }: { eventId: string; initial: Br
     intervalMs: 30_000,
     jitterMs: 5_000,
   });
+  useEffect(() => {
+    track("bracket_view", { event: initial.eventName });
+  }, [initial.eventName]);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">

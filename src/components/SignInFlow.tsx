@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MascotIcon } from "./MascotIcon";
+import { track } from "@/lib/analytics";
 import type { CohortOption } from "@/lib/queries";
 
 export function SignInFlow({
@@ -49,6 +50,7 @@ export function SignInFlow({
 
       <a
         href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
+        onClick={() => track("signin_click", { next })}
         className="mt-6 flex w-full items-center justify-center gap-3 rounded-md border border-border bg-surface px-4 py-3 font-semibold text-ink no-underline shadow-sm hover:bg-surface-alt"
       >
         <GoogleGlyph />

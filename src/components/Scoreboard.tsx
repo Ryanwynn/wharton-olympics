@@ -5,6 +5,7 @@ import { MascotIcon } from "./MascotIcon";
 import { useLivePoll } from "./useLivePoll";
 import { fmtTime } from "@/lib/time";
 import { statusLabel } from "@/lib/format";
+import { track } from "@/lib/analytics";
 import type { StandingRow, ScheduleEvent, EventResultRow, FoodTruck, WeatherNotice } from "@/lib/types";
 
 interface LiveData {
@@ -328,6 +329,7 @@ function FoodTrucksSection({ trucks }: { trucks: FoodTruck[] }) {
                   href={t.menuUrl}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => track("foodtruck_menu_click", { truck: t.name })}
                   className="mt-2 inline-block text-sm font-medium text-penn-blue hover:underline"
                 >
                   View menu ↗
@@ -447,6 +449,7 @@ function ScheduleRow({ event }: { event: ScheduleEvent }) {
               href={event.mapUrl}
               target="_blank"
               rel="noreferrer"
+              onClick={() => track("maps_click", { event: event.name })}
               className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-penn-blue hover:underline"
             >
               <span aria-hidden>📍</span> Google Maps

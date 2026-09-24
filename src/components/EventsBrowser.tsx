@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fmtTime, fmtDayTime, fmtOpensLabel } from "@/lib/time";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MascotIcon } from "./MascotIcon";
+import { track } from "@/lib/analytics";
 import type { BrowseEvent } from "@/lib/types";
 import type { CohortOption } from "@/lib/queries";
 
@@ -44,7 +45,7 @@ export function EventsBrowser({
             {(["all", "mine"] as const).map((f) => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => { setFilter(f); track("events_filter", { filter: f }); }}
                 aria-pressed={filter === f}
                 className={`rounded px-3 py-1.5 ${filter === f ? "bg-penn-blue font-semibold text-white" : "text-ink hover:bg-surface-alt"}`}
               >
@@ -126,8 +127,13 @@ function EventCard({
     call(`/api/events/${e.id}/register`, {
       method: "POST",
       headers: { "idempotency-key": crypto.randomUUID() },
-    }).catch(() => {});
-  const doWithdraw = () => call(`/api/events/${e.id}/withdraw`, { method: "POST" }).catch(() => {});
+    })
+      .then((d) => track(d?.status === "waitlisted" ? "waitlist_join" : "event_register", { event: e.name }))
+      .catch(() => {});
+  const doWithdraw = () =>
+    call(`/api/events/${e.id}/withdraw`, { method: "POST" })
+      .then(() => track("event_withdraw", { event: e.name }))
+      .catch(() => {});
   const requestWithdraw = (isWaitlist: boolean) =>
     setConfirmState({
       title: isWaitlist ? "Leave the waitlist?" : `Withdraw from ${e.name}?`,
@@ -144,7 +150,7 @@ function EventCard({
         ? "You're the captain — leaving reassigns the captaincy to another member (or disbands the team if you're the last one)."
         : "You'll be removed from this team.",
       label: "Leave team",
-      run: () => call(`/api/teams/${teamId}/leave`, { method: "POST" }).catch(() => {}),
+      run: () => call(`/api/teams/${teamId}/leave`, { method: "POST" }).then(() => track("team_leave", { event: e.name })).catch(() => {}),
     });
 
   return (
@@ -401,7 +407,7 @@ function TeamArea({
               ) : (
                 <button
                   key={t.id}
-                  onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).catch(() => {})}
+                  onClick={() => call(`/api/teams/${t.id}/join`, { method: "POST" }).then(() => track("team_join", { event: e.name })).catch(() => {})}
                   disabled={busy}
                   className="w-full rounded-md bg-penn-blue px-4 py-2.5 font-semibold text-white hover:bg-penn-blue-hover disabled:opacity-60"
                 >
@@ -414,7 +420,7 @@ function TeamArea({
 
         {canCreate && (
           <button
-            onClick={() => call(`/api/events/${e.id}/teams`, { method: "POST" }).catch(() => {})}
+            onClick={() => call(`/api/events/${e.id}/teams`, { method: "POST" }).then(() => track("team_create", { event: e.name })).catch(() => {})}
             disabled={busy}
             className="w-full rounded-md border border-penn-blue px-3 py-2.5 text-sm font-semibold text-penn-blue hover:bg-penn-blue-tint disabled:opacity-60"
           >
